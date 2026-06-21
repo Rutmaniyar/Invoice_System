@@ -114,7 +114,29 @@ final class MailerService
         return $result;
     }
 
-    private function smtp(array $mail, string $to, string $subject, string $body, array $headers): bool
+    public function testSmtpConnection(array $mail): bool
+    {
+        $this->lastError = null;
+        if (trim((string) ($mail['host'] ?? '')) === '') {
+            $this->lastError = 'Enter an SMTP host to test the connection.';
+            return false;
+        }
+
+        $socket = $this->negotiate($mail);
+        if ($socket === null) {
+            return false;
+        }
+
+        fwrite($socket, "QUIT\r\n");
+        fclose($socket);
+        return true;
+    }
+
+    /**
+     * Connects, then walks EHLO/STARTTLS/AUTH. Returns the open socket positioned
+     * to accept MAIL FROM, or null with lastError set on the first failed step.
+     */
+    private function negotiate(array $mail)
     {
         $host = (string) $mail['host'];
         $port = (int) ($mail['port'] ?? 587);
@@ -122,10 +144,66 @@ final class MailerService
         $socket = @stream_socket_client($scheme . $host . ':' . $port, $errno, $error, 15);
         if (!$socket) {
             $this->lastError = "Could not connect to {$host}:{$port} ({$error}).";
-            return false;
+            return null;
         }
 
-        $read = static function () use ($socket): string {
+        $read = $this->reader($socket);
+        $write = static fn (string $line) => fwrite($socket, $line . "\r\n");
+        $expect = $this->expecter();
+
+        if (!$expect($read(), 'Server greeting')) {
+            fclose($socket);
+            return null;
+        }
+
+        $write('EHLO ' . ($_SERVER['SERVER_NAME'] ?? 'localhost'));
+        if (!$expect($read(), 'EHLO')) {
+            fclose($socket);
+            return null;
+        }
+
+        if (($mail['encryption'] ?? '') === 'tls') {
+            $write('STARTTLS');
+            if (!$expect($read(), 'STARTTLS')) {
+                fclose($socket);
+                return null;
+            }
+            if (!stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+                $this->lastError = 'STARTTLS negotiation failed while upgrading to an encrypted connection.';
+                fclose($socket);
+                return null;
+            }
+            $write('EHLO ' . ($_SERVER['SERVER_NAME'] ?? 'localhost'));
+            if (!$expect($read(), 'EHLO after STARTTLS')) {
+                fclose($socket);
+                return null;
+            }
+        }
+
+        if (($mail['username'] ?? '') !== '') {
+            $write('AUTH LOGIN');
+            if (!$expect($read(), 'AUTH LOGIN')) {
+                fclose($socket);
+                return null;
+            }
+            $write(base64_encode((string) $mail['username']));
+            if (!$expect($read(), 'SMTP username')) {
+                fclose($socket);
+                return null;
+            }
+            $write(base64_encode((string) ($mail['password'] ?? '')));
+            if (!$expect($read(), 'SMTP authentication')) {
+                fclose($socket);
+                return null;
+            }
+        }
+
+        return $socket;
+    }
+
+    private function reader($socket): callable
+    {
+        return static function () use ($socket): string {
             $response = '';
             while (($line = fgets($socket, 515)) !== false) {
                 $response .= $line;
@@ -135,8 +213,11 @@ final class MailerService
             }
             return $response;
         };
-        $write = static fn (string $line) => fwrite($socket, $line . "\r\n");
-        $expect = function (string $response, string $step) {
+    }
+
+    private function expecter(): callable
+    {
+        return function (string $response, string $step) {
             $code = (int) substr($response, 0, 3);
             if ($code < 200 || $code >= 400) {
                 $this->lastError = "{$step} failed: " . trim($response !== '' ? $response : 'no response from server');
@@ -144,53 +225,18 @@ final class MailerService
             }
             return true;
         };
+    }
 
-        if (!$expect($read(), 'Server greeting')) {
-            fclose($socket);
+    private function smtp(array $mail, string $to, string $subject, string $body, array $headers): bool
+    {
+        $socket = $this->negotiate($mail);
+        if ($socket === null) {
             return false;
         }
 
-        $write('EHLO ' . ($_SERVER['SERVER_NAME'] ?? 'localhost'));
-        if (!$expect($read(), 'EHLO')) {
-            fclose($socket);
-            return false;
-        }
-
-        if (($mail['encryption'] ?? '') === 'tls') {
-            $write('STARTTLS');
-            if (!$expect($read(), 'STARTTLS')) {
-                fclose($socket);
-                return false;
-            }
-            if (!stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
-                $this->lastError = 'STARTTLS negotiation failed while upgrading to an encrypted connection.';
-                fclose($socket);
-                return false;
-            }
-            $write('EHLO ' . ($_SERVER['SERVER_NAME'] ?? 'localhost'));
-            if (!$expect($read(), 'EHLO after STARTTLS')) {
-                fclose($socket);
-                return false;
-            }
-        }
-
-        if (($mail['username'] ?? '') !== '') {
-            $write('AUTH LOGIN');
-            if (!$expect($read(), 'AUTH LOGIN')) {
-                fclose($socket);
-                return false;
-            }
-            $write(base64_encode((string) $mail['username']));
-            if (!$expect($read(), 'SMTP username')) {
-                fclose($socket);
-                return false;
-            }
-            $write(base64_encode((string) ($mail['password'] ?? '')));
-            if (!$expect($read(), 'SMTP authentication')) {
-                fclose($socket);
-                return false;
-            }
-        }
+        $read = $this->reader($socket);
+        $write = static fn (string $line) => fwrite($socket, $line . "\r\n");
+        $expect = $this->expecter();
 
         $from = filter_var((string) ($mail['from_email'] ?? ''), FILTER_VALIDATE_EMAIL) ?: 'no-reply@example.com';
         $write('MAIL FROM:<' . $from . '>');

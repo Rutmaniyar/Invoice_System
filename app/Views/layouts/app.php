@@ -1,9 +1,15 @@
 <?php
+/**
+ * @var string $content Rendered by View::render() before this layout is required.
+ * @var string|null $title
+ * @var array|null $business
+ */
+
 use App\Core\Auth;
+use App\Services\SettingsService;
 
 $user = Auth::user();
-$business = $business ?? [];
-$businessName = $business['business_name'] ?? (config('app.name', 'LedgerFlow'));
+$business = $business ?? (new SettingsService())->business();
 ?>
 <!doctype html>
 <html lang="en">
@@ -21,11 +27,7 @@ $businessName = $business['business_name'] ?? (config('app.name', 'LedgerFlow'))
         <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-72 -translate-x-full border-r border-ink-800 bg-ink-950 px-4 py-5 text-white shadow-2xl transition duration-200 lg:static lg:translate-x-0 lg:shadow-none motion-reduce:transition-none">
             <div class="mb-8 flex items-center justify-between">
                 <a href="/dashboard" class="flex items-center gap-3">
-                    <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500 text-white shadow-sm"><?= icon('spark', 'h-5 w-5') ?></span>
-                    <span>
-                        <span class="block text-lg font-black leading-tight text-white">LedgerFlow</span>
-                        <span class="block max-w-44 truncate text-xs font-semibold text-ink-300"><?= e($businessName) ?></span>
-                    </span>
+                    <?php \App\Core\View::partial('partials/brand', ['business' => $business, 'variant' => 'dark']); ?>
                 </a>
                 <button type="button" class="btn-secondary h-9 w-9 p-0 lg:hidden" data-sidebar-close aria-label="Close navigation"><?= icon('x') ?></button>
             </div>

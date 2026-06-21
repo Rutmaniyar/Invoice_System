@@ -103,6 +103,49 @@
     });
   });
 
+  document.querySelectorAll('[data-test-connection]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const form = button.closest('form');
+      const url = button.getAttribute('data-test-connection');
+      const fields = (button.getAttribute('data-test-fields') || '').split(',').filter(Boolean);
+      const result = document.getElementById(button.getAttribute('data-test-result') || '');
+      const label = button.querySelector('[data-test-label]');
+      const csrfInput = form?.querySelector('input[name="_csrf"]');
+
+      const body = new URLSearchParams();
+      fields.forEach((name) => {
+        const field = form?.querySelector(`[name="${name}"]`);
+        if (field) body.set(name, field.value);
+      });
+      if (csrfInput) body.set('_csrf', csrfInput.value);
+
+      const originalLabel = label ? label.textContent : '';
+      button.disabled = true;
+      if (label) label.textContent = 'Testing…';
+      if (result) {
+        result.textContent = '';
+        result.className = 'text-sm font-semibold';
+      }
+
+      try {
+        const response = await fetch(url, { method: 'POST', body, headers: { Accept: 'application/json' } });
+        const data = await response.json();
+        if (result) {
+          result.textContent = data.message || (data.ok ? 'Connection succeeded.' : 'Connection failed.');
+          result.classList.add(data.ok ? 'text-brand-700' : 'text-red-700');
+        }
+      } catch {
+        if (result) {
+          result.textContent = 'Could not reach the server to test the connection.';
+          result.classList.add('text-red-700');
+        }
+      } finally {
+        button.disabled = false;
+        if (label) label.textContent = originalLabel;
+      }
+    });
+  });
+
   const cookieBanner = document.querySelector('#cookie-banner');
   if (cookieBanner && localStorage.getItem('ledgerflow_cookie_notice') !== 'accepted') {
     cookieBanner.classList.remove('hidden');

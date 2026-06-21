@@ -6,10 +6,12 @@ namespace App\Http\Controllers;
 
 use App\Core\Controller;
 use App\Core\Request;
+use App\Core\Response;
 use App\Core\Session;
 use App\Core\SignedOption;
 use App\Core\Validator;
 use App\Services\InstallerService;
+use App\Services\MailerService;
 use App\Support\ReferenceData;
 
 final class InstallController extends Controller
@@ -72,7 +74,15 @@ final class InstallController extends Controller
             ->required('admin_name', 'Admin name')
             ->required('admin_email', 'Admin email')
             ->email('admin_email', 'Admin email')
-            ->required('admin_password', 'Admin password');
+            ->required('admin_password', 'Admin password')
+            ->in('mail_transport', ['mail', 'smtp'], 'Mail transport')
+            ->integer('mail_port', 'SMTP port')
+            ->in('mail_encryption', ['tls', 'ssl', ''], 'SMTP encryption')
+            ->email('mail_from_email', 'From email');
+
+        if (($data['mail_transport'] ?? 'mail') === 'smtp') {
+            $validator->required('mail_host', 'SMTP host')->required('mail_port', 'SMTP port');
+        }
 
         if (($data['admin_password'] ?? '') !== ($data['admin_password_confirmation'] ?? '')) {
             $errors = array_merge($validator->errors(), $optionErrors);
@@ -106,5 +116,50 @@ final class InstallController extends Controller
 
         Session::flash('success', 'Installation complete. Sign in with your administrator account.');
         $this->redirect('/login');
+    }
+
+    public function testDatabaseConnection(Request $request): never
+    {
+        if (app()->isInstalled()) {
+            Response::json(['ok' => false, 'message' => 'LedgerFlow is already installed.'], 403);
+        }
+
+        $data = $request->all();
+
+        try {
+            (new InstallerService())->testDatabase([
+                'host' => $data['db_host'] ?? '',
+                'port' => (int) ($data['db_port'] ?: 3306),
+                'name' => $data['db_name'] ?? '',
+                'user' => $data['db_user'] ?? '',
+                'password' => $data['db_password'] ?? '',
+                'charset' => 'utf8mb4',
+            ]);
+            Response::json(['ok' => true, 'message' => 'Connected successfully. Database credentials are valid.']);
+        } catch (\Throwable $exception) {
+            Response::json(['ok' => false, 'message' => 'Could not connect: ' . $exception->getMessage()]);
+        }
+    }
+
+    public function testSmtpConnection(Request $request): never
+    {
+        if (app()->isInstalled()) {
+            Response::json(['ok' => false, 'message' => 'LedgerFlow is already installed.'], 403);
+        }
+
+        $data = $request->all();
+        $mailer = new MailerService();
+        $ok = $mailer->testSmtpConnection([
+            'host' => trim((string) ($data['mail_host'] ?? '')),
+            'port' => (int) ($data['mail_port'] ?: 587),
+            'username' => (string) ($data['mail_username'] ?? ''),
+            'password' => (string) ($data['mail_password'] ?? ''),
+            'encryption' => (string) ($data['mail_encryption'] ?? 'tls'),
+        ]);
+
+        Response::json([
+            'ok' => $ok,
+            'message' => $ok ? 'SMTP connection succeeded.' : ($mailer->lastError() ?? 'SMTP connection failed.'),
+        ]);
     }
 }

@@ -22,10 +22,12 @@ $router = $app->router();
 
 $router->get('/install', [InstallController::class, 'show']);
 $router->post('/install', [InstallController::class, 'store'], ['csrf']);
+$router->post('/install/test-db', [InstallController::class, 'testDatabaseConnection'], ['csrf']);
+$router->post('/install/test-mail', [InstallController::class, 'testSmtpConnection'], ['csrf']);
 
 if (!$app->isInstalled()) {
     $path = (new Request())->path();
-    if ($path !== '/install') {
+    if ($path !== '/install' && !str_starts_with($path, '/install/')) {
         Response::redirect('/install');
     }
 }

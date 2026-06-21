@@ -1,4 +1,11 @@
 <?php
+/**
+ * @var array<string,bool> $checks
+ * @var string[] $timezones
+ * @var array $currencies
+ * @var string[] $countries
+ */
+
 $allGood = !in_array(false, $checks, true);
 $selectedTimezone = (string) old('timezone', date_default_timezone_get());
 $selectedCurrency = (string) old('currency', 'USD');
@@ -69,6 +76,12 @@ $selectedCountry = (string) old('business_country', '');
                         <input class="field" name="db_password" type="password" autocomplete="new-password">
                     </label>
                 </div>
+                <div class="mt-4 flex flex-wrap items-center gap-3">
+                    <button type="button" class="btn-secondary" data-test-connection="/install/test-db" data-test-fields="db_host,db_port,db_name,db_user,db_password" data-test-result="db-test-result">
+                        <?= icon('check') ?> <span data-test-label>Test database connection</span>
+                    </button>
+                    <p id="db-test-result" class="text-sm font-semibold"></p>
+                </div>
             </div>
 
             <div class="form-section">
@@ -131,7 +144,61 @@ $selectedCountry = (string) old('business_country', '');
 
             <div class="form-section">
                 <div class="mb-4">
-                    <p class="form-section-title"><span class="step-badge">3</span> Administrator</p>
+                    <p class="form-section-title"><span class="step-badge">3</span> Mail / SMTP</p>
+                    <p class="section-copy">Used for invoice emails, payment reminders, and password resets. Choose PHP mail() if your host supports it, or enter SMTP details and test the connection.</p>
+                </div>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <label>
+                        <span class="label">Transport</span>
+                        <select class="field" name="mail_transport">
+                            <option value="mail" <?= old('mail_transport', 'mail') === 'mail' ? 'selected' : '' ?>>PHP mail()</option>
+                            <option value="smtp" <?= old('mail_transport') === 'smtp' ? 'selected' : '' ?>>SMTP</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span class="label">Encryption</span>
+                        <select class="field" name="mail_encryption">
+                            <option value="tls" <?= old('mail_encryption', 'tls') === 'tls' ? 'selected' : '' ?>>TLS</option>
+                            <option value="ssl" <?= old('mail_encryption') === 'ssl' ? 'selected' : '' ?>>SSL</option>
+                            <option value="" <?= old('mail_encryption') === '' && old('mail_transport') !== '' ? 'selected' : '' ?>>None</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span class="label">SMTP host</span>
+                        <input class="field" name="mail_host" value="<?= e(old('mail_host')) ?>" placeholder="smtp.example.com">
+                    </label>
+                    <label>
+                        <span class="label">SMTP port</span>
+                        <input class="field" name="mail_port" inputmode="numeric" value="<?= e(old('mail_port', '587')) ?>">
+                    </label>
+                    <label>
+                        <span class="label">SMTP username</span>
+                        <input class="field" name="mail_username" value="<?= e(old('mail_username')) ?>" autocomplete="username">
+                    </label>
+                    <label>
+                        <span class="label">SMTP password</span>
+                        <input class="field" name="mail_password" type="password" autocomplete="new-password">
+                    </label>
+                    <label>
+                        <span class="label">From email</span>
+                        <input class="field" name="mail_from_email" type="email" value="<?= e(old('mail_from_email')) ?>" placeholder="Defaults to business email">
+                    </label>
+                    <label>
+                        <span class="label">From name</span>
+                        <input class="field" name="mail_from_name" value="<?= e(old('mail_from_name')) ?>" placeholder="Defaults to business name">
+                    </label>
+                </div>
+                <div class="mt-4 flex flex-wrap items-center gap-3">
+                    <button type="button" class="btn-secondary" data-test-connection="/install/test-mail" data-test-fields="mail_host,mail_port,mail_username,mail_password,mail_encryption" data-test-result="mail-test-result">
+                        <?= icon('send') ?> <span data-test-label>Test SMTP connection</span>
+                    </button>
+                    <p id="mail-test-result" class="text-sm font-semibold"></p>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="mb-4">
+                    <p class="form-section-title"><span class="step-badge">4</span> Administrator</p>
                     <p class="section-copy">Create the first owner account. Passwords are hashed before storage.</p>
                 </div>
                 <div class="grid gap-4 md:grid-cols-2">

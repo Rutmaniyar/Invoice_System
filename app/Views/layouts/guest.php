@@ -1,4 +1,22 @@
-<?php $errors = flash('errors') ?? []; ?>
+<?php
+/**
+ * @var string $content Rendered by View::render() before this layout is required.
+ * @var string|null $title
+ * @var array|null $business
+ */
+
+use App\Services\SettingsService;
+
+$errors = flash('errors') ?? [];
+$business = $business ?? [];
+if ($business === [] && app()->isInstalled()) {
+    try {
+        $business = (new SettingsService())->business();
+    } catch (\Throwable) {
+        $business = [];
+    }
+}
+?>
 <!doctype html>
 <html lang="en">
 <head>
@@ -13,14 +31,8 @@
     <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-ink-900 focus:shadow-soft">Skip to main content</a>
     <main id="main" class="flex min-h-screen items-center justify-center px-4 py-10">
         <div class="w-full max-w-5xl" data-motion="fade-up">
-            <div class="mb-8 flex items-center justify-center gap-3">
-                <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-600 text-white shadow-soft">
-                    <?= icon('spark', 'h-6 w-6') ?>
-                </div>
-                <div>
-                    <p class="text-xl font-black tracking-tight text-ink-900">LedgerFlow</p>
-                    <p class="text-sm font-medium text-ink-500">Self-hosted invoicing</p>
-                </div>
+            <div class="mb-8 flex items-center justify-center">
+                <?php \App\Core\View::partial('partials/brand', ['business' => $business, 'size' => 'lg']); ?>
             </div>
 
             <?php \App\Core\View::partial('partials/flash'); ?>
