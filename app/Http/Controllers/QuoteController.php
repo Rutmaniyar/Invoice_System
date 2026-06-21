@@ -61,9 +61,11 @@ final class QuoteController extends Controller
             ->integer('client_id', 'Client');
 
         $calculated = (new InvoiceCalculator())->fromRequest($data);
-        if ($calculated['items'] === []) {
+        if ($calculated['errors'] !== [] || $calculated['items'] === []) {
             $errors = $validator->errors();
-            $errors['items'] = 'At least one line item is required.';
+            $errors['items'] = $calculated['errors'] !== []
+                ? implode(' ', $calculated['errors'])
+                : 'At least one line item is required.';
             $this->backWithErrors($errors, $data);
         }
 

@@ -50,9 +50,11 @@ final class RecurringController extends Controller
             ->required('currency', 'Currency');
 
         $calculated = (new InvoiceCalculator())->fromRequest($data);
-        if ($validator->fails() || $calculated['items'] === []) {
+        if ($validator->fails() || $calculated['errors'] !== [] || $calculated['items'] === []) {
             $errors = $validator->errors();
-            if ($calculated['items'] === []) {
+            if ($calculated['errors'] !== []) {
+                $errors['items'] = implode(' ', $calculated['errors']);
+            } elseif ($calculated['items'] === []) {
                 $errors['items'] = 'At least one line item is required.';
             }
             $this->backWithErrors($errors, $data);

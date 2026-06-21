@@ -42,7 +42,9 @@ final class ExpenseController extends Controller
             ->numeric('amount', 'Amount')
             ->numeric('tax_amount', 'Tax amount')
             ->max('vendor', 190, 'Vendor')
-            ->max('category', 120, 'Category');
+            ->max('category', 120, 'Category')
+            ->max('payment_method', 80, 'Payment method')
+            ->max('notes', 5000, 'Notes');
 
         if ($validator->fails()) {
             $this->backWithErrors($validator->errors(), $data);

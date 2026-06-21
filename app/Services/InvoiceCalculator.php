@@ -17,9 +17,11 @@ final class InvoiceCalculator
         $taxes = $data['item_tax_rate'] ?? [];
 
         $items = [];
+        $errors = [];
         $subtotal = 0.0;
         $discountTotal = 0.0;
         $taxTotal = 0.0;
+        $lineNumber = 0;
 
         foreach ($descriptions as $index => $description) {
             $description = trim((string) $description);
@@ -27,10 +29,29 @@ final class InvoiceCalculator
                 continue;
             }
 
-            $quantity = max(0, (float) ($quantities[$index] ?? 1));
-            $unitPrice = max(0, (float) ($prices[$index] ?? 0));
-            $discountRate = max(0, (float) ($discounts[$index] ?? 0));
-            $taxRate = max(0, (float) ($taxes[$index] ?? 0));
+            $lineNumber++;
+            $fields = [
+                'Quantity' => $quantities[$index] ?? 1,
+                'Unit price' => $prices[$index] ?? 0,
+                'Discount rate' => $discounts[$index] ?? 0,
+                'Tax rate' => $taxes[$index] ?? 0,
+            ];
+
+            $invalid = false;
+            foreach ($fields as $label => $value) {
+                if ($value !== null && $value !== '' && !is_numeric($value)) {
+                    $errors[] = "Line {$lineNumber} ({$description}): {$label} must be a number.";
+                    $invalid = true;
+                }
+            }
+            if ($invalid) {
+                continue;
+            }
+
+            $quantity = max(0, (float) $fields['Quantity']);
+            $unitPrice = max(0, (float) $fields['Unit price']);
+            $discountRate = max(0, (float) $fields['Discount rate']);
+            $taxRate = max(0, (float) $fields['Tax rate']);
 
             $lineSubtotal = round($quantity * $unitPrice, 2);
             $lineDiscount = round($lineSubtotal * ($discountRate / 100), 2);
@@ -55,6 +76,7 @@ final class InvoiceCalculator
 
         return [
             'items' => $items,
+            'errors' => $errors,
             'subtotal' => round($subtotal, 2),
             'discount_total' => round($discountTotal, 2),
             'tax_total' => round($taxTotal, 2),

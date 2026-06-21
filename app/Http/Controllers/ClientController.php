@@ -51,7 +51,13 @@ final class ClientController extends Controller
             ->email('email', 'Email')
             ->max('name', 190, 'Client name')
             ->max('contact_name', 190, 'Contact name')
-            ->max('email', 190, 'Email');
+            ->max('email', 190, 'Email')
+            ->max('phone', 80, 'Phone')
+            ->max('website', 190, 'Website')
+            ->max('tax_number', 120, 'Tax number')
+            ->max('billing_address', 5000, 'Billing address')
+            ->max('shipping_address', 5000, 'Shipping address')
+            ->max('notes', 5000, 'Notes');
 
         if ($validator->fails()) {
             $this->backWithErrors($validator->errors(), $data);
@@ -124,7 +130,13 @@ final class ClientController extends Controller
             ->email('email', 'Email')
             ->max('name', 190, 'Client name')
             ->max('contact_name', 190, 'Contact name')
-            ->max('email', 190, 'Email');
+            ->max('email', 190, 'Email')
+            ->max('phone', 80, 'Phone')
+            ->max('website', 190, 'Website')
+            ->max('tax_number', 120, 'Tax number')
+            ->max('billing_address', 5000, 'Billing address')
+            ->max('shipping_address', 5000, 'Shipping address')
+            ->max('notes', 5000, 'Notes');
 
         if ($validator->fails()) {
             $this->backWithErrors($validator->errors(), $data);

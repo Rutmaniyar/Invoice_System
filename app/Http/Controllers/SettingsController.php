@@ -91,7 +91,20 @@ final class SettingsController extends Controller
             ->required('email', 'Email')
             ->max('email', 190, 'Email')
             ->email('email', 'Email')
-            ->required('default_currency', 'Default currency');
+            ->required('default_currency', 'Default currency')
+            ->max('legal_name', 190, 'Legal name')
+            ->max('phone', 80, 'Phone')
+            ->max('website', 190, 'Website')
+            ->max('address_line1', 190, 'Address line 1')
+            ->max('address_line2', 190, 'Address line 2')
+            ->max('city', 120, 'City')
+            ->max('region', 120, 'Region')
+            ->max('postal_code', 40, 'Postal code')
+            ->max('tax_number', 120, 'Tax number')
+            ->max('brand_color', 20, 'Brand color')
+            ->max('accent_color', 20, 'Accent color')
+            ->integer('default_payment_terms', 'Payment terms days')
+            ->max('privacy_policy', 20000, 'Privacy policy support text');
 
         if ($validator->fails() || $optionErrors !== []) {
             $this->backWithErrors(array_merge($validator->errors(), $optionErrors), $data);
@@ -221,7 +234,7 @@ final class SettingsController extends Controller
         $data = $request->all();
         $validator = (new Validator($data))
             ->required('name', 'Name')
-            ->max('name', 190, 'Name')
+            ->max('name', 160, 'Name')
             ->required('email', 'Email')
             ->max('email', 190, 'Email')
             ->email('email', 'Email')

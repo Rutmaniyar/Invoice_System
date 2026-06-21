@@ -96,7 +96,9 @@ final class InvoiceController extends Controller
         }
 
         $calculated = (new InvoiceCalculator())->fromRequest($data);
-        if ($calculated['items'] === []) {
+        if ($calculated['errors'] !== []) {
+            $errors['items'] = implode(' ', $calculated['errors']);
+        } elseif ($calculated['items'] === []) {
             $errors['items'] = 'At least one line item is required.';
         }
 
