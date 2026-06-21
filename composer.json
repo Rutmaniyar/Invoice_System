@@ -1,0 +1,29 @@
+{
+  "name": "ledgerflow/shared-hosting-invoicing",
+  "description": "Self-hosted invoicing and business management application for PHP shared hosting.",
+  "type": "project",
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.2"
+  },
+  "suggest": {
+    "dompdf/dompdf": "Improves invoice and quote PDF rendering when Composer is available.",
+    "phpmailer/phpmailer": "Improves SMTP compatibility when Composer is available."
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "app/"
+    },
+    "files": [
+      "app/Core/helpers.php"
+    ]
+  },
+  "scripts": {
+    "test": "php tests/run.php",
+    "lint": "php -l public/index.php && php tests/lint.php"
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true
+  }
+}

@@ -1,0 +1,117 @@
+(() => {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const sidebar = document.querySelector('#sidebar');
+  const backdrop = document.querySelector('#sidebar-backdrop');
+  const openSidebar = () => {
+    sidebar?.classList.remove('-translate-x-full');
+    backdrop?.classList.remove('hidden');
+  };
+  const closeSidebar = () => {
+    sidebar?.classList.add('-translate-x-full');
+    backdrop?.classList.add('hidden');
+  };
+
+  document.querySelectorAll('[data-sidebar-open]').forEach((button) => button.addEventListener('click', openSidebar));
+  document.querySelectorAll('[data-sidebar-close]').forEach((button) => button.addEventListener('click', closeSidebar));
+
+  if (!reduceMotion) {
+    document.querySelectorAll('[data-motion="fade-up"]').forEach((node, index) => {
+      node.animate(
+        [
+          { opacity: 0.98, transform: 'translateY(8px)' },
+          { opacity: 1, transform: 'translateY(0)' }
+        ],
+        { duration: 240, delay: Math.min(index * 35, 140), easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' }
+      );
+    });
+  }
+
+  document.querySelectorAll('[data-add-line]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const target = document.querySelector(button.getAttribute('data-add-line'));
+      const template = document.querySelector(button.getAttribute('data-template'));
+      if (!target || !template) return;
+      target.insertAdjacentHTML('beforeend', template.innerHTML);
+    });
+  });
+
+  document.querySelectorAll('[data-client-select]').forEach((select) => {
+    const form = select.closest('form');
+    const panel = form?.querySelector('[data-new-client-panel]');
+    const requiredFields = form ? form.querySelectorAll('[data-new-client-required]') : [];
+    const syncClientPanel = () => {
+      const creatingClient = select.value === '__new__';
+      panel?.classList.toggle('hidden', !creatingClient);
+      requiredFields.forEach((field) => {
+        field.toggleAttribute('required', creatingClient);
+      });
+    };
+
+    select.addEventListener('change', syncClientPanel);
+    syncClientPanel();
+  });
+
+  document.addEventListener('click', (event) => {
+    const remove = event.target.closest('[data-remove-line]');
+    if (remove) {
+      const row = remove.closest('[data-line-row]');
+      if (row) row.remove();
+    }
+  });
+
+  document.querySelectorAll('[data-chart]').forEach((canvas) => {
+    const values = JSON.parse(canvas.getAttribute('data-values') || '[]');
+    const labels = JSON.parse(canvas.getAttribute('data-labels') || '[]');
+    const ctx = canvas.getContext('2d');
+    if (!ctx || values.length === 0) return;
+
+    const width = canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+    const height = canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    const cssWidth = width / window.devicePixelRatio;
+    const cssHeight = height / window.devicePixelRatio;
+    const max = Math.max(...values, 1);
+    const padding = 20;
+    const step = (cssWidth - padding * 2) / Math.max(values.length - 1, 1);
+
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#0ea394';
+    ctx.beginPath();
+    values.forEach((value, index) => {
+      const x = padding + index * step;
+      const y = cssHeight - padding - ((value / max) * (cssHeight - padding * 2));
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    ctx.fillStyle = '#8b5cf6';
+    values.forEach((value, index) => {
+      const x = padding + index * step;
+      const y = cssHeight - padding - ((value / max) * (cssHeight - padding * 2));
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    ctx.fillStyle = '#637487';
+    ctx.font = '11px system-ui';
+    labels.forEach((label, index) => {
+      if (index % Math.ceil(labels.length / 4) !== 0) return;
+      ctx.fillText(label, padding + index * step - 10, cssHeight - 4);
+    });
+  });
+
+  const cookieBanner = document.querySelector('#cookie-banner');
+  if (cookieBanner && localStorage.getItem('ledgerflow_cookie_notice') !== 'accepted') {
+    cookieBanner.classList.remove('hidden');
+  }
+
+  document.querySelectorAll('[data-cookie-accept]').forEach((button) => {
+    button.addEventListener('click', () => {
+      localStorage.setItem('ledgerflow_cookie_notice', 'accepted');
+      cookieBanner?.classList.add('hidden');
+    });
+  });
+})();

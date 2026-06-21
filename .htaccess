@@ -1,0 +1,17 @@
+Options -Indexes
+
+<FilesMatch "^(composer\.(json|lock)|package(-lock)?\.json|tailwind\.config\.js|\.env|AGENTS\.md)$">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  RewriteRule ^(app|config|database|docs|resources|storage|tests|vendor|node_modules)(/.*)?$ - [F,L]
+  RewriteRule ^assets/(.*)$ public/assets/$1 [L]
+  RewriteRule ^uploads/(.*)$ public/uploads/$1 [L]
+
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ public/index.php [L]
+</IfModule>
