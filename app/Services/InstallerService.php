@@ -36,8 +36,13 @@ final class InstallerService
 
     public function testDatabase(array $database): bool
     {
-        new Database($database);
-        return true;
+        try {
+            new Database($database);
+            return true;
+        } catch (\Throwable $exception) {
+            error_log('LedgerFlow install: database connection test failed - ' . $exception->getMessage());
+            throw new \RuntimeException($this->describeDatabaseError($exception));
+        }
     }
 
     public function install(array $data): void
@@ -55,11 +60,37 @@ final class InstallerService
             'charset' => 'utf8mb4',
         ];
 
-        $db = new Database($databaseConfig);
-        $this->runMigrations($db);
-        $this->seed($db, $data);
+        try {
+            $db = new Database($databaseConfig);
+        } catch (\Throwable $exception) {
+            error_log('LedgerFlow install: database connection failed - ' . $exception->getMessage());
+            throw new \RuntimeException($this->describeDatabaseError($exception));
+        }
+
+        try {
+            $this->runMigrations($db);
+            $this->seed($db, $data);
+        } catch (\Throwable $exception) {
+            error_log('LedgerFlow install: setup failed - ' . $exception->getMessage());
+            throw new \RuntimeException('Could not finish setting up the database. Please try again, and contact support if this keeps happening.');
+        }
+
         $this->writeConfig($data, $databaseConfig);
         file_put_contents(STORAGE_PATH . '/installed.lock', 'Installed at ' . date(DATE_ATOM));
+    }
+
+    /** Translates a raw PDO/driver error into a short, actionable message - no SQLSTATE codes or driver internals. */
+    private function describeDatabaseError(\Throwable $exception): string
+    {
+        $message = $exception->getMessage();
+
+        return match (true) {
+            str_contains($message, 'Access denied') => 'The database username or password is incorrect.',
+            str_contains($message, 'Unknown database') => 'That database name does not exist. Check the spelling or create it first.',
+            str_contains($message, 'getaddrinfo') || str_contains($message, 'Name or service not known')
+                || str_contains($message, 'Connection refused') || str_contains($message, "Can't connect") => 'Could not reach the database server. Check the host and port.',
+            default => 'Could not connect to the database. Check your database settings and try again.',
+        };
     }
 
     public function runMigrations(Database $db): void

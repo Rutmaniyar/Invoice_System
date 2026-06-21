@@ -22,7 +22,13 @@ final class UpdateService
     public function fetchLatestRelease(): array
     {
         $response = $this->httpGet(self::API_URL, "Accept: application/vnd.github+json\r\n");
-        $data = json_decode($response, true, flags: JSON_THROW_ON_ERROR);
+
+        try {
+            $data = json_decode($response, true, flags: JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            error_log('LedgerFlow update check: unexpected response - ' . $exception->getMessage());
+            throw new \RuntimeException('The update server returned an unexpected response. Try again later.');
+        }
 
         $downloadUrl = null;
         foreach ($data['assets'] ?? [] as $asset) {
@@ -86,6 +92,45 @@ final class UpdateService
 
     private function httpGet(string $url, string $extraHeaders): string
     {
+        $body = extension_loaded('curl')
+            ? $this->httpGetViaCurlExtension($url, $extraHeaders)
+            : $this->httpGetWithStreams($url, $extraHeaders);
+
+        if ($body === null) {
+            throw new \RuntimeException('Could not reach the update server. Check your internet connection and try again later.');
+        }
+
+        return $body;
+    }
+
+    /** Uses PHP's bundled libcurl HTTP client extension (ext-curl) - not a shell call. */
+    private function httpGetViaCurlExtension(string $url, string $extraHeaders): ?string
+    {
+        $handle = curl_init($url);
+        $options = [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 180,
+            CURLOPT_USERAGENT => 'LedgerFlow-Updater',
+            CURLOPT_HTTPHEADER => array_filter(explode("\r\n", trim($extraHeaders))),
+        ];
+        curl_setopt_array($handle, $options);
+
+        $body = curl_exec($handle);
+        $status = curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+        $error = curl_error($handle);
+        curl_close($handle);
+
+        if ($body === false || $status >= 400) {
+            error_log("LedgerFlow update check: HTTP request to {$url} failed (status {$status}): {$error}");
+            return null;
+        }
+
+        return $body;
+    }
+
+    private function httpGetWithStreams(string $url, string $extraHeaders): ?string
+    {
         $context = stream_context_create([
             'http' => [
                 'method' => 'GET',
@@ -97,7 +142,9 @@ final class UpdateService
 
         $body = @file_get_contents($url, false, $context);
         if ($body === false) {
-            throw new \RuntimeException('Could not reach GitHub. Make sure allow_url_fopen is enabled.');
+            $error = error_get_last()['message'] ?? 'unknown error';
+            error_log("LedgerFlow update check: HTTP request to {$url} failed: {$error}");
+            return null;
         }
 
         return $body;

@@ -109,7 +109,8 @@ final class InstallController extends Controller
         try {
             (new InstallerService())->install($data);
         } catch (\Throwable $exception) {
-            Session::flash('errors', ['install' => $exception->getMessage()]);
+            error_log('LedgerFlow install failed: ' . $exception->getMessage());
+            Session::flash('errors', [$exception->getMessage()]);
             Session::flash('_old', $data);
             $this->redirect('/install');
         }
@@ -137,7 +138,7 @@ final class InstallController extends Controller
             ]);
             Response::json(['ok' => true, 'message' => 'Connected successfully. Database credentials are valid.']);
         } catch (\Throwable $exception) {
-            Response::json(['ok' => false, 'message' => 'Could not connect: ' . $exception->getMessage()]);
+            Response::json(['ok' => false, 'message' => $exception->getMessage()]);
         }
     }
 

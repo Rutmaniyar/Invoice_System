@@ -30,7 +30,8 @@ final class UpdateController extends Controller
                 ? "Update available: v{$release['version']}."
                 : 'You are running the latest version.');
         } catch (\Throwable $exception) {
-            Session::flash('errors', ['Could not check for updates: ' . $exception->getMessage()]);
+            error_log('LedgerFlow update check failed: ' . $exception->getMessage());
+            Session::flash('errors', ["Couldn't check for updates right now. Please try again later."]);
         }
 
         $this->redirect('/settings');
@@ -53,6 +54,7 @@ final class UpdateController extends Controller
             Session::flash('success', "Updated to v{$version}. A backup of the previous version was saved to storage/backups/" . basename($backupPath) . '.');
         } catch (\Throwable $exception) {
             AuditLogger::log('system.update_failed', 'application', null, ['error' => $exception->getMessage()]);
+            error_log('LedgerFlow update apply failed: ' . $exception->getMessage());
             Session::flash('errors', ['Update failed: ' . $exception->getMessage()]);
         }
 
