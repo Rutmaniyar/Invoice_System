@@ -53,7 +53,8 @@ final class UpdateService
         return $latestVersion !== '' && version_compare($latestVersion, $this->currentVersion(), '>');
     }
 
-    public function applyUpdate(string $downloadUrl): string
+    /** @return array{backup_path: string, dependencies: array{ok: bool, attempted: bool, message: string}} */
+    public function applyUpdate(string $downloadUrl): array
     {
         $trusted = false;
         foreach (self::TRUSTED_PREFIXES as $prefix) {
@@ -86,10 +87,11 @@ final class UpdateService
             file_put_contents($tmpZip, $content, LOCK_EX);
 
             $backupPath = $this->backupCurrentInstallation();
+            $installer = new InstallerService();
 
             try {
                 $this->extractOver($tmpZip);
-                (new InstallerService())->runMigrations(app()->db());
+                $installer->runMigrations(app()->db());
             } catch (\Throwable $exception) {
                 $this->restoreFromBackup($backupPath);
                 throw new \RuntimeException(
@@ -98,7 +100,15 @@ final class UpdateService
                 );
             }
 
-            return $backupPath;
+            // Best-effort and never fatal: a new release may ship updated Composer dependencies, but the
+            // app already fell back gracefully before this version, so a failure here must not roll back
+            // an otherwise-successful update.
+            $dependencies = $installer->installComposerDependencies();
+            if (!$dependencies['ok']) {
+                error_log('LedgerFlow update: Composer dependencies were not installed automatically - ' . $dependencies['message']);
+            }
+
+            return ['backup_path' => $backupPath, 'dependencies' => $dependencies];
         } finally {
             if (is_file($tmpZip)) {
                 unlink($tmpZip);

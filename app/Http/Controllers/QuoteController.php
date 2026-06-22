@@ -132,8 +132,120 @@ final class QuoteController extends Controller
         ]);
     }
 
+    private function findDraftOrRedirect(string $id): array
+    {
+        $quote = app()->db()->fetch('SELECT * FROM quotes WHERE id = ?', [(int) $id]);
+        if (!$quote) {
+            Session::flash('errors', ['Quote not found.']);
+            $this->redirect('/quotes');
+        }
+        if ($quote['status'] !== 'draft') {
+            Session::flash('errors', ['Only draft quotes can be edited or deleted.']);
+            $this->redirect('/quotes/' . $id);
+        }
+
+        return $quote;
+    }
+
+    public function edit(Request $request, string $id): string
+    {
+        $quote = $this->findDraftOrRedirect($id);
+
+        return $this->view('quotes/form', [
+            'title' => 'Edit ' . $quote['quote_number'],
+            'mode' => 'edit',
+            'quote' => $quote,
+            'items' => app()->db()->fetchAll('SELECT * FROM quote_items WHERE quote_id = ? ORDER BY sort_order', [(int) $id]),
+            'clients' => app()->db()->fetchAll('SELECT id, name, currency FROM clients WHERE deleted_at IS NULL ORDER BY name'),
+            'currencies' => app()->db()->fetchAll('SELECT * FROM currencies WHERE is_active = 1 ORDER BY code'),
+            'taxes' => app()->db()->fetchAll('SELECT * FROM taxes WHERE is_active = 1 ORDER BY name'),
+            'business' => (new SettingsService())->business(),
+        ]);
+    }
+
+    public function update(Request $request, string $id): never
+    {
+        $this->findDraftOrRedirect($id);
+        $data = $request->all();
+        $currencyCodes = ReferenceData::currencyCodes(app()->db()->fetchAll('SELECT * FROM currencies WHERE is_active = 1 ORDER BY code'));
+        $currency = SignedOption::verify('currency', $data['currency'] ?? '', $currencyCodes);
+        $data['currency'] = $currency ?? '';
+
+        $validator = (new Validator($data))
+            ->required('client_id', 'Client')
+            ->integer('client_id', 'Client')
+            ->required('issue_date', 'Issue date')
+            ->date('issue_date', 'Issue date')
+            ->date('valid_until', 'Valid until')
+            ->required('currency', 'Currency')
+            ->in('status', ['draft', 'sent'], 'Status');
+
+        $calculated = (new InvoiceCalculator())->fromRequest($data);
+        $errors = $validator->errors();
+        if ($calculated['errors'] !== [] || $calculated['items'] === []) {
+            $errors['items'] = $calculated['errors'] !== []
+                ? implode(' ', $calculated['errors'])
+                : 'At least one line item is required.';
+        }
+
+        if ($errors !== []) {
+            $this->backWithErrors($errors, $data);
+        }
+
+        app()->db()->transaction(function () use ($id, $data, $calculated): void {
+            app()->db()->execute(
+                'UPDATE quotes
+                 SET client_id = ?, status = ?, issue_date = ?, valid_until = ?, currency = ?, subtotal = ?, discount_total = ?,
+                     tax_total = ?, total = ?, notes = ?, terms = ?, updated_at = NOW()
+                 WHERE id = ?',
+                [
+                    (int) $data['client_id'],
+                    $data['status'] ?? 'draft',
+                    $data['issue_date'],
+                    $data['valid_until'] ?: null,
+                    $data['currency'],
+                    $calculated['subtotal'],
+                    $calculated['discount_total'],
+                    $calculated['tax_total'],
+                    $calculated['total'],
+                    $data['notes'] ?? null,
+                    $data['terms'] ?? null,
+                    (int) $id,
+                ]
+            );
+
+            app()->db()->execute('DELETE FROM quote_items WHERE quote_id = ?', [(int) $id]);
+            foreach ($calculated['items'] as $item) {
+                app()->db()->execute(
+                    'INSERT INTO quote_items (quote_id, description, quantity, unit_price, discount_rate, tax_rate, line_total, sort_order)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    [(int) $id, $item['description'], $item['quantity'], $item['unit_price'], $item['discount_rate'], $item['tax_rate'], $item['line_total'], $item['sort_order']]
+                );
+            }
+        });
+
+        AuditLogger::log('quote.updated', 'quote', (int) $id);
+        Session::flash('success', 'Quote updated.');
+        $this->redirect('/quotes/' . $id);
+    }
+
+    public function destroy(Request $request, string $id): never
+    {
+        $this->findDraftOrRedirect($id);
+        app()->db()->execute('DELETE FROM quotes WHERE id = ?', [(int) $id]);
+        AuditLogger::log('quote.deleted', 'quote', (int) $id);
+        Session::flash('success', 'Draft quote deleted.');
+        $this->redirect('/quotes');
+    }
+
     public function pdf(Request $request, string $id): never
     {
+        if ((string) $request->input('preview', '') !== '') {
+            header('Content-Type: text/html; charset=utf-8');
+            echo (new PdfService())->quoteHtml((int) $id);
+            exit;
+        }
+
         $quote = app()->db()->fetch('SELECT quote_number FROM quotes WHERE id = ?', [(int) $id]);
         $pdf = (new PdfService())->quotePdf((int) $id);
         header('Content-Type: application/pdf');

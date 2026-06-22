@@ -13,15 +13,18 @@
         <div class="flex items-end"><button class="btn-primary w-full"><?= icon('reports') ?> Run report</button></div>
     </form>
 
+    <p class="text-xs font-bold uppercase tracking-wide text-ink-500">Figures below are in your default currency, <?= e($currency) ?> - the currency your business is always settled in.</p>
+
     <div class="grid gap-4 md:grid-cols-4">
-        <div class="metric-card"><p class="text-sm font-semibold text-ink-500">Income</p><p class="mt-2 text-2xl font-black"><?= money($income) ?></p></div>
-        <div class="metric-card"><p class="text-sm font-semibold text-ink-500">Expenses</p><p class="mt-2 text-2xl font-black"><?= money($expenses) ?></p></div>
-        <div class="metric-card"><p class="text-sm font-semibold text-ink-500">Net</p><p class="mt-2 text-2xl font-black"><?= money($profit) ?></p></div>
-        <div class="metric-card"><p class="text-sm font-semibold text-ink-500">Outstanding</p><p class="mt-2 text-2xl font-black"><?= money($outstanding) ?></p></div>
+        <div class="metric-card"><p class="text-sm font-semibold text-ink-500">Income</p><p class="mt-2 text-2xl font-black"><?= money($income, $currency) ?></p></div>
+        <div class="metric-card"><p class="text-sm font-semibold text-ink-500">Expenses</p><p class="mt-2 text-2xl font-black"><?= money($expenses, $currency) ?></p></div>
+        <div class="metric-card"><p class="text-sm font-semibold text-ink-500">Net</p><p class="mt-2 text-2xl font-black"><?= money($profit, $currency) ?></p></div>
+        <div class="metric-card"><p class="text-sm font-semibold text-ink-500">Outstanding</p><p class="mt-2 text-2xl font-black"><?= money($outstanding, $currency) ?></p></div>
     </div>
 
     <div class="card p-5">
         <h2 class="text-lg font-black text-ink-900">Client ledger</h2>
+        <p class="text-sm text-ink-500">Invoices billed in <?= e($currency) ?> only - see "Other currencies" below for everything else.</p>
         <div class="mt-5 table-wrap">
             <table class="data-table">
                 <thead><tr><th>Client</th><th class="text-right">Invoiced</th><th class="text-right">Paid</th><th class="text-right">Outstanding</th></tr></thead>
@@ -29,9 +32,9 @@
                     <?php foreach ($clientLedger as $row): ?>
                         <tr>
                             <td class="font-bold"><?= e($row['name']) ?></td>
-                            <td class="text-right"><?= money($row['invoiced']) ?></td>
-                            <td class="text-right"><?= money($row['paid']) ?></td>
-                            <td class="text-right font-bold"><?= money($row['outstanding']) ?></td>
+                            <td class="text-right"><?= money($row['invoiced'], $currency) ?></td>
+                            <td class="text-right"><?= money($row['paid'], $currency) ?></td>
+                            <td class="text-right font-bold"><?= money($row['outstanding'], $currency) ?></td>
                         </tr>
                     <?php endforeach; ?>
                     <?php if (!$clientLedger): ?>
@@ -50,4 +53,52 @@
             <div class="table-footer"><span><?= e(count($clientLedger)) ?> ledger rows</span><span>Period filtered</span></div>
         </div>
     </div>
+
+    <?php if ($otherCurrencyIncome || $otherCurrencyOutstanding || $otherCurrencyLedger): ?>
+        <div class="card border-amber-200 bg-amber-50/40 p-5">
+            <h2 class="text-lg font-black text-ink-900">Other currencies</h2>
+            <p class="text-sm text-ink-500">Invoices, payments, and balances booked in a currency other than your default (<?= e($currency) ?>). Shown separately rather than blended into the totals above, since adding different currencies together isn't meaningful.</p>
+
+            <?php if ($otherCurrencyIncome): ?>
+                <div class="mt-4">
+                    <p class="text-xs font-bold uppercase tracking-wide text-ink-500">Income received</p>
+                    <div class="mt-2 flex flex-wrap gap-3">
+                        <?php foreach ($otherCurrencyIncome as $row): ?>
+                            <span class="badge bg-white text-ink-800"><?= money($row['total'], $row['currency']) ?></span>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($otherCurrencyOutstanding): ?>
+                <div class="mt-4">
+                    <p class="text-xs font-bold uppercase tracking-wide text-ink-500">Outstanding balance</p>
+                    <div class="mt-2 flex flex-wrap gap-3">
+                        <?php foreach ($otherCurrencyOutstanding as $row): ?>
+                            <span class="badge bg-white text-ink-800"><?= money($row['total'], $row['currency']) ?></span>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($otherCurrencyLedger): ?>
+                <div class="mt-5 table-wrap">
+                    <table class="data-table">
+                        <thead><tr><th>Client</th><th>Currency</th><th class="text-right">Invoiced</th><th class="text-right">Paid</th><th class="text-right">Outstanding</th></tr></thead>
+                        <tbody class="divide-y divide-ink-100">
+                            <?php foreach ($otherCurrencyLedger as $row): ?>
+                                <tr>
+                                    <td class="font-bold"><?= e($row['name']) ?></td>
+                                    <td><span class="badge bg-ink-100 text-ink-700"><?= e($row['currency']) ?></span></td>
+                                    <td class="text-right"><?= money($row['invoiced'], $row['currency']) ?></td>
+                                    <td class="text-right"><?= money($row['paid'], $row['currency']) ?></td>
+                                    <td class="text-right font-bold"><?= money($row['outstanding'], $row['currency']) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
 </section>

@@ -1,6 +1,13 @@
 <?php
 $selectedDefaultCurrency = (string) old('default_currency', $business['default_currency'] ?? 'USD');
 $selectedBusinessCountry = (string) old('country', $business['country'] ?? '');
+$gdCheck = null;
+foreach ($systemStatus as $check) {
+    if ($check['key'] === 'gd_extension') {
+        $gdCheck = $check;
+    }
+}
+$systemIssues = array_values(array_filter($systemStatus, static fn (array $check): bool => !$check['ok']));
 ?>
 <section class="space-y-6">
     <div class="toolbar flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -25,6 +32,28 @@ $selectedBusinessCountry = (string) old('country', $business['country'] ?? '');
         </div>
     </div>
 
+    <?php if ($systemIssues): ?>
+        <div class="card border-amber-200 bg-amber-50/60 p-5" role="alert">
+            <div class="flex items-start gap-3">
+                <span class="mt-0.5 flex-none text-amber-600"><?= icon('warning', 'h-5 w-5') ?></span>
+                <div class="min-w-0 flex-1">
+                    <h2 class="text-sm font-black uppercase tracking-wide text-amber-800">System status needs attention</h2>
+                    <ul class="mt-2 space-y-2 text-sm text-amber-900">
+                        <?php foreach ($systemIssues as $check): ?>
+                            <li><strong><?= e($check['label']) ?>:</strong> <?= e($check['message']) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <?php if (array_filter($systemIssues, static fn (array $c): bool => $c['fixable'])): ?>
+                        <form method="post" action="/settings/dependencies/install" class="mt-3">
+                            <?= csrf_field() ?>
+                            <button class="btn-secondary"><?= icon('download') ?> Install dependencies now</button>
+                        </form>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <div class="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <form method="post" action="/settings/business" enctype="multipart/form-data" class="card p-5">
             <?= csrf_field() ?>
@@ -40,7 +69,13 @@ $selectedBusinessCountry = (string) old('country', $business['country'] ?? '');
                 <label><span class="label">Phone</span><input class="field" name="phone" value="<?= e($business['phone']) ?>"></label>
                 <label><span class="label">Website</span><input class="field" name="website" type="url" value="<?= e($business['website']) ?>"></label>
                 <label><span class="label">Tax number</span><input class="field" name="tax_number" value="<?= e($business['tax_number']) ?>"></label>
-                <label class="md:col-span-2"><span class="label">Logo</span><input class="field pt-2" name="logo" type="file" accept="image/png,image/jpeg,image/webp"></label>
+                <label class="md:col-span-2">
+                    <span class="label">Logo</span>
+                    <input class="field pt-2" name="logo" type="file" accept="image/png,image/jpeg,image/webp">
+                    <?php if ($gdCheck && !$gdCheck['ok']): ?>
+                        <p class="field-help text-amber-700"><?= icon('warning', 'h-3.5 w-3.5') ?> <?= e($gdCheck['message']) ?></p>
+                    <?php endif; ?>
+                </label>
                 <label><span class="label">Brand color</span><input class="field p-1" name="brand_color" type="color" value="<?= e($business['brand_color']) ?>"></label>
                 <label><span class="label">Accent color</span><input class="field p-1" name="accent_color" type="color" value="<?= e($business['accent_color']) ?>"></label>
                 <label><span class="label">Default currency</span><select class="field" name="default_currency" required><?php foreach ($currencies as $currency): ?><option value="<?= e(secure_option('currency', $currency['code'])) ?>" <?= secure_option_selected('currency', $selectedDefaultCurrency, $currency['code']) ?>><?= e($currency['code']) ?> - <?= e($currency['name'] ?? $currency['code']) ?></option><?php endforeach; ?></select></label>

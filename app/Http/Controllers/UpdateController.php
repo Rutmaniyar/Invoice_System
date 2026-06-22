@@ -55,9 +55,17 @@ final class UpdateController extends Controller
         }
 
         try {
-            $backupPath = $updater->applyUpdate($downloadUrl);
+            $result = $updater->applyUpdate($downloadUrl);
+            $backupPath = $result['backup_path'];
             AuditLogger::log('system.updated', 'application', null, ['version' => $version, 'backup' => basename($backupPath)]);
-            Session::flash('success', "Updated to v{$version}. A backup of the previous version was saved to storage/backups/" . basename($backupPath) . '.');
+
+            $message = "Updated to v{$version}. A backup of the previous version was saved to storage/backups/" . basename($backupPath) . '.';
+            if ($result['dependencies']['attempted']) {
+                $message .= $result['dependencies']['ok']
+                    ? ' Composer dependencies were installed automatically.'
+                    : ' Composer dependencies could not be installed automatically - check Settings for details.';
+            }
+            Session::flash('success', $message);
         } catch (\Throwable $exception) {
             AuditLogger::log('system.update_failed', 'application', null, ['error' => $exception->getMessage()]);
             error_log('LedgerFlow update apply failed: ' . $exception->getMessage());

@@ -18,10 +18,15 @@ final class InvoiceService
         $paid = (float) (app()->db()->fetch('SELECT COALESCE(SUM(amount), 0) AS paid FROM payments WHERE invoice_id = ?', [$invoiceId])['paid'] ?? 0);
         $balance = max(0, (float) $invoice['total'] - $paid);
         $status = $invoice['status'];
+        $latestPaymentDate = null;
 
         if ($status !== 'void') {
             if ($balance <= 0.0001 && (float) $invoice['total'] > 0) {
                 $status = 'paid';
+                $latestPaymentDate = app()->db()->fetch(
+                    'SELECT payment_date FROM payments WHERE invoice_id = ? ORDER BY payment_date DESC, id DESC LIMIT 1',
+                    [$invoiceId]
+                )['payment_date'] ?? null;
             } elseif ($paid > 0) {
                 $status = 'partial';
             } elseif (strtotime((string) $invoice['due_date']) < strtotime(date('Y-m-d')) && !in_array($status, ['draft', 'paid'], true)) {
@@ -29,9 +34,11 @@ final class InvoiceService
             }
         }
 
+        $paidAt = $status === 'paid' ? ($invoice['paid_at'] ?? $latestPaymentDate ?? date('Y-m-d H:i:s')) : null;
+
         app()->db()->execute(
-            'UPDATE invoices SET amount_paid = ?, balance_due = ?, status = ?, updated_at = NOW() WHERE id = ?',
-            [$paid, $balance, $status, $invoiceId]
+            'UPDATE invoices SET amount_paid = ?, balance_due = ?, status = ?, paid_at = ?, updated_at = NOW() WHERE id = ?',
+            [$paid, $balance, $status, $paidAt, $invoiceId]
         );
     }
 

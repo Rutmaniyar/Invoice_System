@@ -67,6 +67,49 @@ function percentage(mixed $amount): string
     return rtrim(rtrim(number_format((float) $amount, 2), '0'), '.') . '%';
 }
 
+function currency_symbol(string $code): string
+{
+    foreach (\App\Support\ReferenceData::currencies() as $currency) {
+        if ($currency['code'] === $code) {
+            return $currency['symbol'];
+        }
+    }
+
+    return $code;
+}
+
+/** Generates a 50-900 tint/shade ramp from a single base hex color, as "r g b" triples for CSS custom properties. */
+function color_shades(string $hex): array
+{
+    $hex = ltrim(trim($hex), '#');
+    if (!preg_match('/^[0-9a-fA-F]{6}$/', $hex)) {
+        $hex = '0ea394';
+    }
+
+    $base = [
+        hexdec(substr($hex, 0, 2)),
+        hexdec(substr($hex, 2, 2)),
+        hexdec(substr($hex, 4, 2)),
+    ];
+
+    $tints = ['50' => 0.95, '100' => 0.88, '200' => 0.74, '300' => 0.58, '400' => 0.32];
+    $shades = ['600' => 0.12, '700' => 0.26, '800' => 0.40, '900' => 0.55];
+
+    $mix = static fn (int $channel, int $toward, float $ratio): int => (int) round($channel + ($toward - $channel) * $ratio);
+
+    $ramp = [];
+    foreach ($tints as $step => $ratio) {
+        $ramp[$step] = implode(' ', array_map(static fn (int $c) => $mix($c, 255, $ratio), $base));
+    }
+    $ramp['500'] = implode(' ', $base);
+    foreach ($shades as $step => $ratio) {
+        $ramp[$step] = implode(' ', array_map(static fn (int $c) => $mix($c, 0, $ratio), $base));
+    }
+
+    ksort($ramp, SORT_NUMERIC);
+    return $ramp;
+}
+
 function route_is(string $prefix): bool
 {
     $path = trim(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/', '/');
@@ -91,9 +134,12 @@ function secure_option_selected(string $scope, mixed $current, mixed $value): st
 
 function old(string $key, mixed $default = ''): mixed
 {
-    $old = Session::pull('_old', []);
-    Session::flash('_old', $old);
-    return $old[$key] ?? $default;
+    static $cache = null;
+    if ($cache === null) {
+        $cache = Session::pull('_old', []);
+    }
+
+    return $cache[$key] ?? $default;
 }
 
 function flash(string $key): mixed

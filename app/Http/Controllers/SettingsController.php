@@ -11,8 +11,10 @@ use App\Core\Session;
 use App\Core\SignedOption;
 use App\Core\Validator;
 use App\Services\AuditLogger;
+use App\Services\InstallerService;
 use App\Services\MailerService;
 use App\Services\SettingsService;
+use App\Services\SystemStatusService;
 use App\Services\UpdateService;
 use App\Services\UploadService;
 use App\Support\ReferenceData;
@@ -41,6 +43,7 @@ final class SettingsController extends Controller
             ],
             'currencies' => $currencies,
             'countries' => ReferenceData::countries(),
+            'systemStatus' => (new SystemStatusService())->checks(),
             'taxes' => app()->db()->fetchAll('SELECT * FROM taxes ORDER BY is_active DESC, name'),
             'emailTemplates' => app()->db()->fetchAll('SELECT * FROM email_templates ORDER BY template_key'),
             'invoiceTemplates' => app()->db()->fetchAll('SELECT * FROM invoice_templates ORDER BY is_default DESC, name'),
@@ -173,6 +176,23 @@ final class SettingsController extends Controller
 
         AuditLogger::log('settings.mail_updated');
         Session::flash('success', 'Mail settings updated.');
+        $this->redirect('/settings');
+    }
+
+    public function installDependencies(): never
+    {
+        $result = (new InstallerService())->installComposerDependencies();
+
+        if ($result['ok']) {
+            AuditLogger::log('settings.dependencies_installed');
+            Session::flash('success', $result['message']);
+        } else {
+            if ($result['attempted']) {
+                AuditLogger::log('settings.dependencies_install_failed', null, null, ['message' => $result['message']]);
+            }
+            Session::flash('errors', [$result['message']]);
+        }
+
         $this->redirect('/settings');
     }
 

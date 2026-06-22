@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 require __DIR__ . '/../bootstrap.php';
 
-use App\Services\InvoiceCalculator;
-use App\Services\PdfService;
 use App\Core\SignedOption;
 use App\Core\Validator;
+use App\Core\View;
+use App\Services\InvoiceCalculator;
+use App\Services\PdfService;
 use App\Support\ReferenceData;
 
 $failures = 0;
@@ -83,48 +84,112 @@ $invalid = (new Validator([
 assert_same(true, $invalid->fails(), 'new validator rules reject invalid values');
 
 $pdfReflection = new ReflectionClass(PdfService::class);
-$documentLines = $pdfReflection->getMethod('documentLines');
-$documentLines->setAccessible(true);
-$zeroAdjustmentLines = implode("\n", $documentLines->invoke(new PdfService(), ['business_name' => 'Acme'], [
+$render = $pdfReflection->getMethod('legacyRender');
+$render->setAccessible(true);
+
+$baseInvoice = [
     'invoice_number' => 'INV-001',
     'client_name' => 'Client',
+    'client_email' => null,
+    'billing_address' => null,
     'issue_date' => '2026-05-25',
     'due_date' => '2026-06-25',
+    'status' => 'sent',
     'currency' => 'USD',
     'subtotal' => '100.00',
     'discount_total' => '0.00',
     'tax_total' => '0.00',
     'total' => '100.00',
-], [[
+    'amount_paid' => '0.00',
+    'balance_due' => '100.00',
+    'paid_at' => null,
+    'notes' => null,
+    'terms' => null,
+];
+
+$zeroAdjustmentPdf = $render->invoke(new PdfService(), ['business_name' => 'Acme'], $baseInvoice, [[
     'description' => 'Service',
     'quantity' => '1',
     'unit_price' => '100.00',
     'tax_rate' => '0.00',
     'line_total' => '100.00',
-]], 'invoice_number'));
-assert_not_contains('Discount:', $zeroAdjustmentLines, 'PDF omits zero discount summary');
-assert_not_contains('Tax:', $zeroAdjustmentLines, 'PDF omits zero tax summary and item tax');
+]], [], 'invoice_number', true);
+assert_contains('%PDF-1.4', $zeroAdjustmentPdf, 'PDF has a valid header');
+assert_not_contains('(Discount)', $zeroAdjustmentPdf, 'PDF omits zero discount row');
+assert_not_contains('(Tax)', $zeroAdjustmentPdf, 'PDF omits zero tax row and item tax column');
 
-$nonZeroAdjustmentLines = implode("\n", $documentLines->invoke(new PdfService(), ['business_name' => 'Acme'], [
+$nonZeroAdjustmentPdf = $render->invoke(new PdfService(), ['business_name' => 'Acme'], array_merge($baseInvoice, [
     'invoice_number' => 'INV-002',
-    'client_name' => 'Client',
-    'issue_date' => '2026-05-25',
-    'due_date' => '2026-06-25',
-    'currency' => 'USD',
-    'subtotal' => '100.00',
     'discount_total' => '5.00',
     'tax_total' => '9.50',
     'total' => '104.50',
-], [[
+    'balance_due' => '104.50',
+]), [[
     'description' => 'Service',
     'quantity' => '1',
     'unit_price' => '100.00',
     'tax_rate' => '10.00',
     'line_total' => '104.50',
-]], 'invoice_number'));
-assert_contains('Discount: 5.00 USD', $nonZeroAdjustmentLines, 'PDF includes non-zero discount summary');
-assert_contains('Tax: 9.50 USD', $nonZeroAdjustmentLines, 'PDF includes non-zero tax summary');
-assert_contains('Tax 10.00%', $nonZeroAdjustmentLines, 'PDF includes item tax when document tax is non-zero');
+]], [], 'invoice_number', true);
+assert_contains('(Discount)', $nonZeroAdjustmentPdf, 'PDF includes non-zero discount row');
+assert_contains('(-5.00 USD)', $nonZeroAdjustmentPdf, 'PDF includes formatted discount amount');
+assert_contains('(Tax)', $nonZeroAdjustmentPdf, 'PDF includes non-zero tax row');
+assert_contains('(9.50 USD)', $nonZeroAdjustmentPdf, 'PDF includes formatted tax amount');
+assert_contains('(10%)', $nonZeroAdjustmentPdf, 'PDF includes item tax percentage when document tax is non-zero');
+
+$paidInvoicePdf = $render->invoke(new PdfService(), ['business_name' => 'Acme'], array_merge($baseInvoice, [
+    'status' => 'paid',
+    'paid_at' => '2026-06-01 10:00:00',
+    'amount_paid' => '100.00',
+    'balance_due' => '0.00',
+]), [[
+    'description' => 'Service',
+    'quantity' => '1',
+    'unit_price' => '100.00',
+    'tax_rate' => '0.00',
+    'line_total' => '100.00',
+]], [[
+    'payment_date' => '2026-06-01',
+    'method' => 'Bank transfer',
+    'reference' => 'TX-1',
+    'amount' => '100.00',
+]], 'invoice_number', true);
+assert_contains('(PAID)', $paidInvoicePdf, 'PDF includes a PAID stamp for paid invoices');
+assert_contains('(PAYMENT HISTORY)', $paidInvoicePdf, 'PDF includes payment history for invoices with payments');
+assert_contains('(Bank transfer)', $paidInvoicePdf, 'PDF lists each recorded payment method');
+
+$htmlBusiness = ['business_name' => 'Acme', 'brand_color' => '#0ea394', 'default_currency' => 'USD'];
+$htmlInvoice = array_merge($baseInvoice, ['status' => 'paid', 'paid_at' => '2026-06-01 10:00:00', 'amount_paid' => '100.00', 'balance_due' => '0.00']);
+ob_start();
+$html = View::render('pdf/document', [
+    'business' => $htmlBusiness,
+    'document' => $htmlInvoice,
+    'items' => [['description' => 'Service', 'quantity' => '1', 'unit_price' => '100.00', 'tax_rate' => '0.00', 'line_total' => '100.00']],
+    'payments' => [['payment_date' => '2026-06-01', 'method' => 'Bank transfer', 'reference' => 'TX-1', 'amount' => '100.00']],
+    'numberKey' => 'invoice_number',
+    'isInvoice' => true,
+    'defaultCurrency' => 'USD',
+    'forPdf' => false,
+], '');
+ob_end_clean();
+assert_contains('<!doctype html>', $html, 'HTML template renders a full document');
+assert_contains('PAID', $html, 'HTML template shows the PAID stamp for paid invoices');
+assert_contains('PAYMENT HISTORY', $html, 'HTML template includes payment history');
+assert_not_contains('Billed in', $html, 'HTML template omits the foreign-currency badge when currencies match');
+
+ob_start();
+$foreignCurrencyHtml = View::render('pdf/document', [
+    'business' => $htmlBusiness,
+    'document' => array_merge($baseInvoice, ['currency' => 'GBP']),
+    'items' => [['description' => 'Service', 'quantity' => '1', 'unit_price' => '100.00', 'tax_rate' => '0.00', 'line_total' => '100.00']],
+    'payments' => [],
+    'numberKey' => 'invoice_number',
+    'isInvoice' => true,
+    'defaultCurrency' => 'USD',
+    'forPdf' => false,
+], '');
+ob_end_clean();
+assert_contains('Billed in GBP', $foreignCurrencyHtml, 'HTML template flags an invoice currency different from the business default');
 
 if ($failures > 0) {
     exit(1);

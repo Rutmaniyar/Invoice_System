@@ -56,6 +56,9 @@ $router->get('/quotes', [QuoteController::class, 'index'], ['auth', 'can:quotes.
 $router->get('/quotes/create', [QuoteController::class, 'create'], ['auth', 'can:quotes.manage']);
 $router->post('/quotes', [QuoteController::class, 'store'], ['auth', 'can:quotes.manage', 'throttle:60,1', 'csrf']);
 $router->get('/quotes/{id}', [QuoteController::class, 'show'], ['auth', 'can:quotes.view']);
+$router->get('/quotes/{id}/edit', [QuoteController::class, 'edit'], ['auth', 'can:quotes.manage']);
+$router->post('/quotes/{id}', [QuoteController::class, 'update'], ['auth', 'can:quotes.manage', 'throttle:60,1', 'csrf']);
+$router->post('/quotes/{id}/delete', [QuoteController::class, 'destroy'], ['auth', 'can:quotes.manage', 'throttle:30,1', 'csrf']);
 $router->get('/quotes/{id}/pdf', [QuoteController::class, 'pdf'], ['auth', 'can:quotes.view']);
 $router->post('/quotes/{id}/send', [QuoteController::class, 'send'], ['auth', 'can:quotes.manage', 'throttle:20,5', 'csrf']);
 $router->post('/quotes/{id}/convert', [QuoteController::class, 'convert'], ['auth', 'can:quotes.manage', 'throttle:30,1', 'csrf']);
@@ -64,6 +67,9 @@ $router->get('/invoices', [InvoiceController::class, 'index'], ['auth', 'can:inv
 $router->get('/invoices/create', [InvoiceController::class, 'create'], ['auth', 'can:invoices.manage']);
 $router->post('/invoices', [InvoiceController::class, 'store'], ['auth', 'can:invoices.manage', 'throttle:60,1', 'csrf']);
 $router->get('/invoices/{id}', [InvoiceController::class, 'show'], ['auth', 'can:invoices.view']);
+$router->get('/invoices/{id}/edit', [InvoiceController::class, 'edit'], ['auth', 'can:invoices.manage']);
+$router->post('/invoices/{id}', [InvoiceController::class, 'update'], ['auth', 'can:invoices.manage', 'throttle:60,1', 'csrf']);
+$router->post('/invoices/{id}/delete', [InvoiceController::class, 'destroy'], ['auth', 'can:invoices.manage', 'throttle:30,1', 'csrf']);
 $router->get('/invoices/{id}/pdf', [InvoiceController::class, 'pdf'], ['auth', 'can:invoices.view']);
 $router->post('/invoices/{id}/send', [InvoiceController::class, 'send'], ['auth', 'can:invoices.manage', 'throttle:20,5', 'csrf']);
 $router->post('/invoices/{id}/payments', [InvoiceController::class, 'recordPayment'], ['auth', 'can:payments.manage', 'throttle:60,1', 'csrf']);
@@ -85,6 +91,7 @@ $router->post('/settings/users', [SettingsController::class, 'addUser'], ['auth'
 
 $router->post('/settings/update/check', [UpdateController::class, 'check'], ['auth', 'can:system.update', 'throttle:10,5', 'csrf']);
 $router->post('/settings/update/apply', [UpdateController::class, 'apply'], ['auth', 'can:system.update', 'throttle:3,30', 'csrf']);
+$router->post('/settings/dependencies/install', [SettingsController::class, 'installDependencies'], ['auth', 'can:system.update', 'throttle:5,5', 'csrf']);
 
 $router->get('/privacy', [PrivacyController::class, 'index'], ['auth', 'can:settings.manage']);
 $router->post('/privacy', [PrivacyController::class, 'store'], ['auth', 'can:settings.manage', 'throttle:30,1', 'csrf']);

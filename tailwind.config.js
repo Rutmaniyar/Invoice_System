@@ -21,28 +21,28 @@ module.exports = {
           950: '#070b12'
         },
         brand: {
-          50: '#eefdfa',
-          100: '#cff8f1',
-          200: '#9ef0e3',
-          300: '#5edfcc',
-          400: '#22c6b4',
-          500: '#0ea394',
-          600: '#0b8179',
-          700: '#0d6761',
-          800: '#10524f',
-          900: '#123f3e'
+          50: 'rgb(var(--brand-50, 238 253 250) / <alpha-value>)',
+          100: 'rgb(var(--brand-100, 207 248 241) / <alpha-value>)',
+          200: 'rgb(var(--brand-200, 158 240 227) / <alpha-value>)',
+          300: 'rgb(var(--brand-300, 94 223 204) / <alpha-value>)',
+          400: 'rgb(var(--brand-400, 34 198 180) / <alpha-value>)',
+          500: 'rgb(var(--brand-500, 14 163 148) / <alpha-value>)',
+          600: 'rgb(var(--brand-600, 11 129 121) / <alpha-value>)',
+          700: 'rgb(var(--brand-700, 13 103 97) / <alpha-value>)',
+          800: 'rgb(var(--brand-800, 16 82 79) / <alpha-value>)',
+          900: 'rgb(var(--brand-900, 18 63 62) / <alpha-value>)'
         },
         accent: {
-          50: '#f5f3ff',
-          100: '#ede9fe',
-          200: '#ddd6fe',
-          300: '#c4b5fd',
-          400: '#a78bfa',
-          500: '#8b5cf6',
-          600: '#7c3aed',
-          700: '#6d28d9',
-          800: '#5b21b6',
-          900: '#4c1d95'
+          50: 'rgb(var(--accent-50, 245 243 255) / <alpha-value>)',
+          100: 'rgb(var(--accent-100, 237 233 254) / <alpha-value>)',
+          200: 'rgb(var(--accent-200, 221 214 254) / <alpha-value>)',
+          300: 'rgb(var(--accent-300, 196 181 253) / <alpha-value>)',
+          400: 'rgb(var(--accent-400, 167 139 250) / <alpha-value>)',
+          500: 'rgb(var(--accent-500, 139 92 246) / <alpha-value>)',
+          600: 'rgb(var(--accent-600, 124 58 237) / <alpha-value>)',
+          700: 'rgb(var(--accent-700, 109 40 217) / <alpha-value>)',
+          800: 'rgb(var(--accent-800, 91 33 182) / <alpha-value>)',
+          900: 'rgb(var(--accent-900, 76 29 149) / <alpha-value>)'
         }
       },
       boxShadow: {

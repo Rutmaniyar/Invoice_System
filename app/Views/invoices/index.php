@@ -27,7 +27,7 @@
     </div>
     <div class="table-wrap">
         <table class="data-table">
-            <thead><tr><th>Invoice</th><th>Client</th><th>Status</th><th>Due</th><th class="text-right">Paid</th><th class="text-right">Balance</th></tr></thead>
+            <thead><tr><th>Invoice</th><th>Client</th><th>Status</th><th>Due</th><th class="text-right">Paid</th><th class="text-right">Balance</th><th class="text-right">Actions</th></tr></thead>
             <tbody class="divide-y divide-ink-100">
                 <?php foreach ($invoices as $invoice): ?>
                     <tr>
@@ -37,10 +37,21 @@
                         <td><?= e($invoice['due_date']) ?></td>
                         <td class="text-right"><?= money($invoice['amount_paid'], $invoice['currency']) ?></td>
                         <td class="text-right font-bold"><?= money($invoice['balance_due'], $invoice['currency']) ?></td>
+                        <td class="text-right">
+                            <?php if ($invoice['status'] === 'draft'): ?>
+                                <div class="flex justify-end gap-2">
+                                    <a class="btn-secondary h-8 px-2.5 text-xs" href="/invoices/<?= e($invoice['id']) ?>/edit"><?= icon('edit', 'h-3.5 w-3.5') ?> Edit</a>
+                                    <form method="post" action="/invoices/<?= e($invoice['id']) ?>/delete" onsubmit="return confirm('Delete this draft invoice? This cannot be undone.')">
+                                        <?= csrf_field() ?>
+                                        <button class="btn-secondary h-8 px-2.5 text-xs text-red-700"><?= icon('trash', 'h-3.5 w-3.5') ?> Delete</button>
+                                    </form>
+                                </div>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if (!$invoices && $status === 'overdue'): ?>
-                    <tr><td colspan="6">
+                    <tr><td colspan="7">
                         <?php empty_state([
                             'variant' => 'success',
                             'title' => 'No overdue invoices',
@@ -50,7 +61,7 @@
                         ]) ?>
                     </td></tr>
                 <?php elseif (!$invoices && $status !== ''): ?>
-                    <tr><td colspan="6">
+                    <tr><td colspan="7">
                         <?php empty_state([
                             'variant' => 'filtered_results',
                             'title' => 'No ' . $status . ' invoices match this filter',
@@ -60,7 +71,7 @@
                         ]) ?>
                     </td></tr>
                 <?php elseif (!$invoices): ?>
-                    <tr><td colspan="6">
+                    <tr><td colspan="7">
                         <?php empty_state([
                             'icon' => 'invoices',
                             'title' => 'No invoices yet',

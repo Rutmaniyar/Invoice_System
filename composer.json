@@ -4,10 +4,10 @@
   "type": "project",
   "license": "proprietary",
   "require": {
-    "php": ">=8.2"
+    "php": ">=8.2",
+    "dompdf/dompdf": "^3.1"
   },
   "suggest": {
-    "dompdf/dompdf": "Improves invoice and quote PDF rendering when Composer is available.",
     "phpmailer/phpmailer": "Improves SMTP compatibility when Composer is available."
   },
   "autoload": {

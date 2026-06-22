@@ -60,6 +60,26 @@
     }
   });
 
+  // Disables submit buttons after first submit so a double-click, slow network, or
+  // resubmitting a cached form after pressing "back" can't create duplicate records.
+  document.querySelectorAll('form').forEach((form) => {
+    if (form.hasAttribute('data-allow-resubmit')) return;
+    form.addEventListener('submit', (event) => {
+      if (event.defaultPrevented) return;
+      form.querySelectorAll('button[type="submit"], button:not([type])').forEach((button) => {
+        button.disabled = true;
+        button.dataset.submitting = '1';
+      });
+    });
+  });
+
+  window.addEventListener('pageshow', () => {
+    document.querySelectorAll('button[data-submitting="1"]').forEach((button) => {
+      button.disabled = false;
+      delete button.dataset.submitting;
+    });
+  });
+
   document.querySelectorAll('[data-chart]').forEach((canvas) => {
     const values = JSON.parse(canvas.getAttribute('data-values') || '[]');
     const labels = JSON.parse(canvas.getAttribute('data-labels') || '[]');

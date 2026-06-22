@@ -50,11 +50,125 @@ final class InvoiceController extends Controller
     {
         return $this->view('invoices/form', [
             'title' => 'New Invoice',
+            'mode' => 'create',
             'clients' => app()->db()->fetchAll('SELECT id, name, currency FROM clients WHERE deleted_at IS NULL ORDER BY name'),
             'currencies' => app()->db()->fetchAll('SELECT * FROM currencies WHERE is_active = 1 ORDER BY code'),
             'taxes' => app()->db()->fetchAll('SELECT * FROM taxes WHERE is_active = 1 ORDER BY name'),
             'business' => (new SettingsService())->business(),
         ]);
+    }
+
+    private function findDraftOrRedirect(string $id): array
+    {
+        $invoice = app()->db()->fetch('SELECT * FROM invoices WHERE id = ?', [(int) $id]);
+        if (!$invoice) {
+            Session::flash('errors', ['Invoice not found.']);
+            $this->redirect('/invoices');
+        }
+        if ($invoice['status'] !== 'draft') {
+            Session::flash('errors', ['Only draft invoices can be edited or deleted.']);
+            $this->redirect('/invoices/' . $id);
+        }
+
+        return $invoice;
+    }
+
+    public function edit(Request $request, string $id): string
+    {
+        $invoice = $this->findDraftOrRedirect($id);
+
+        return $this->view('invoices/form', [
+            'title' => 'Edit ' . $invoice['invoice_number'],
+            'mode' => 'edit',
+            'invoice' => $invoice,
+            'items' => app()->db()->fetchAll('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY sort_order', [(int) $id]),
+            'clients' => app()->db()->fetchAll('SELECT id, name, currency FROM clients WHERE deleted_at IS NULL ORDER BY name'),
+            'currencies' => app()->db()->fetchAll('SELECT * FROM currencies WHERE is_active = 1 ORDER BY code'),
+            'taxes' => app()->db()->fetchAll('SELECT * FROM taxes WHERE is_active = 1 ORDER BY name'),
+            'business' => (new SettingsService())->business(),
+        ]);
+    }
+
+    public function update(Request $request, string $id): never
+    {
+        $invoice = $this->findDraftOrRedirect($id);
+        $data = $request->all();
+        $currencyCodes = ReferenceData::currencyCodes(app()->db()->fetchAll('SELECT * FROM currencies WHERE is_active = 1 ORDER BY code'));
+        $currency = SignedOption::verify('currency', $data['currency'] ?? '', $currencyCodes);
+        $data['currency'] = $currency ?? '';
+
+        $validator = (new Validator($data))
+            ->required('client_id', 'Client')
+            ->integer('client_id', 'Client')
+            ->required('issue_date', 'Issue date')
+            ->date('issue_date', 'Issue date')
+            ->required('due_date', 'Due date')
+            ->date('due_date', 'Due date')
+            ->required('currency', 'Currency')
+            ->in('status', ['draft', 'sent'], 'Status');
+
+        $errors = $validator->errors();
+        $client = app()->db()->fetch('SELECT id FROM clients WHERE id = ? AND deleted_at IS NULL', [(int) ($data['client_id'] ?? 0)]);
+        if (!isset($errors['client_id']) && !$client) {
+            $errors['client_id'] = 'Selected client was not found.';
+        }
+
+        $calculated = (new InvoiceCalculator())->fromRequest($data);
+        if ($calculated['errors'] !== []) {
+            $errors['items'] = implode(' ', $calculated['errors']);
+        } elseif ($calculated['items'] === []) {
+            $errors['items'] = 'At least one line item is required.';
+        }
+
+        if ($errors !== []) {
+            $this->backWithErrors($errors, $data);
+        }
+
+        app()->db()->transaction(function () use ($id, $data, $calculated): void {
+            app()->db()->execute(
+                'UPDATE invoices
+                 SET client_id = ?, status = ?, issue_date = ?, due_date = ?, currency = ?, subtotal = ?, discount_total = ?,
+                     tax_total = ?, total = ?, balance_due = ?, notes = ?, terms = ?, updated_at = NOW()
+                 WHERE id = ?',
+                [
+                    (int) $data['client_id'],
+                    $data['status'] ?? 'draft',
+                    $data['issue_date'],
+                    $data['due_date'],
+                    $data['currency'],
+                    $calculated['subtotal'],
+                    $calculated['discount_total'],
+                    $calculated['tax_total'],
+                    $calculated['total'],
+                    $calculated['total'],
+                    $data['notes'] ?? null,
+                    $data['terms'] ?? null,
+                    (int) $id,
+                ]
+            );
+
+            app()->db()->execute('DELETE FROM invoice_items WHERE invoice_id = ?', [(int) $id]);
+            foreach ($calculated['items'] as $item) {
+                app()->db()->execute(
+                    'INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, discount_rate, tax_rate, line_total, sort_order)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    [(int) $id, $item['description'], $item['quantity'], $item['unit_price'], $item['discount_rate'], $item['tax_rate'], $item['line_total'], $item['sort_order']]
+                );
+            }
+        });
+
+        AuditLogger::log('invoice.updated', 'invoice', (int) $id);
+        Session::flash('success', 'Invoice updated.');
+        $this->redirect('/invoices/' . $id);
+    }
+
+    public function destroy(Request $request, string $id): never
+    {
+        $this->findDraftOrRedirect($id);
+        app()->db()->execute('DELETE FROM invoices WHERE id = ?', [(int) $id]);
+        AuditLogger::log('invoice.deleted', 'invoice', (int) $id);
+        Session::flash('success', 'Draft invoice deleted.');
+        $this->redirect('/invoices');
     }
 
     public function store(Request $request): never
@@ -107,19 +221,29 @@ final class InvoiceController extends Controller
         }
 
         $result = app()->db()->transaction(function () use ($data, $calculated, $createClient, $clientId): array {
+            $reusedExistingClient = false;
             if ($createClient) {
-                $clientId = app()->db()->insert(
-                    'INSERT INTO clients (type, name, email, billing_address, currency, data_processing_basis)
-                     VALUES (?, ?, ?, ?, ?, ?)',
-                    [
-                        'business',
-                        trim((string) $data['new_client_name']),
-                        trim((string) ($data['new_client_email'] ?? '')) ?: null,
-                        trim((string) ($data['new_client_billing_address'] ?? '')) ?: null,
-                        $data['currency'],
-                        'contract',
-                    ]
+                $existing = ClientController::findDuplicate(
+                    trim((string) $data['new_client_name']),
+                    (string) ($data['new_client_email'] ?? '')
                 );
+                if ($existing !== null) {
+                    $clientId = (int) $existing['id'];
+                    $reusedExistingClient = true;
+                } else {
+                    $clientId = app()->db()->insert(
+                        'INSERT INTO clients (type, name, email, billing_address, currency, data_processing_basis)
+                         VALUES (?, ?, ?, ?, ?, ?)',
+                        [
+                            'business',
+                            trim((string) $data['new_client_name']),
+                            trim((string) ($data['new_client_email'] ?? '')) ?: null,
+                            trim((string) ($data['new_client_billing_address'] ?? '')) ?: null,
+                            $data['currency'],
+                            'contract',
+                        ]
+                    );
+                }
             }
 
             $invoiceId = app()->db()->insert(
@@ -153,7 +277,7 @@ final class InvoiceController extends Controller
                 );
             }
 
-            return ['invoice_id' => $invoiceId, 'client_id' => (int) $clientId, 'created_client' => $createClient];
+            return ['invoice_id' => $invoiceId, 'client_id' => (int) $clientId, 'created_client' => $createClient && !$reusedExistingClient];
         });
 
         if ($result['created_client']) {
@@ -213,6 +337,12 @@ final class InvoiceController extends Controller
 
     public function pdf(Request $request, string $id): never
     {
+        if ((string) $request->input('preview', '') !== '') {
+            header('Content-Type: text/html; charset=utf-8');
+            echo (new PdfService())->invoiceHtml((int) $id);
+            exit;
+        }
+
         $invoice = app()->db()->fetch('SELECT invoice_number FROM invoices WHERE id = ?', [(int) $id]);
         $pdf = (new PdfService())->invoicePdf((int) $id);
         header('Content-Type: application/pdf');

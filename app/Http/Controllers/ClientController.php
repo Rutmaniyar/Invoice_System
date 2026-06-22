@@ -63,6 +63,12 @@ final class ClientController extends Controller
             $this->backWithErrors($validator->errors(), $data);
         }
 
+        $duplicate = self::findDuplicate(trim((string) $data['name']), (string) ($data['email'] ?? ''));
+        if ($duplicate !== null) {
+            Session::flash('success', 'A client named "' . $duplicate['name'] . '" already exists - opened the existing record instead of creating a duplicate.');
+            $this->redirect('/clients/' . $duplicate['id']);
+        }
+
         $id = app()->db()->insert(
             'INSERT INTO clients
              (type, name, contact_name, email, phone, website, billing_address, shipping_address, tax_number, currency, notes, data_processing_basis)
@@ -86,6 +92,25 @@ final class ClientController extends Controller
         AuditLogger::log('client.created', 'client', $id);
         Session::flash('success', 'Client created.');
         $this->redirect('/clients/' . $id);
+    }
+
+    /**
+     * Looks up an existing, non-deleted client with the same normalized name and email to avoid duplicate records.
+     * Requires a matching email on both sides - matching by name alone risks merging two unrelated clients that
+     * happen to share a common name (e.g. two different "John Smith" customers with no email on file).
+     */
+    public static function findDuplicate(string $name, string $email): ?array
+    {
+        $name = trim($name);
+        $email = trim($email);
+        if ($name === '' || $email === '') {
+            return null;
+        }
+
+        return app()->db()->fetch(
+            'SELECT id, name FROM clients WHERE deleted_at IS NULL AND LOWER(name) = LOWER(?) AND LOWER(email) = LOWER(?) LIMIT 1',
+            [$name, $email]
+        );
     }
 
     public function show(Request $request, string $id): string

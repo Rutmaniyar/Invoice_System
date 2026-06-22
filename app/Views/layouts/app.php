@@ -20,6 +20,7 @@ $business = $business ?? (new SettingsService())->business();
     <title><?= e(($title ?? 'Dashboard') . ' · ' . config('app.name', 'LedgerFlow')) ?></title>
     <link rel="icon" type="image/svg+xml" href="<?= e((defined('PUBLIC_URL_PREFIX') ? rtrim(PUBLIC_URL_PREFIX, '/') : '') . '/favicon.svg') ?>">
     <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
+    <?php \App\Core\View::partial('partials/brand-theme', ['business' => $business]); ?>
 </head>
 <body class="app-shell">
     <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-ink-900 focus:shadow-soft">Skip to main content</a>

@@ -1,5 +1,13 @@
-<?php $selectedCurrency = (string) old('currency', $business['default_currency'] ?? 'USD'); ?>
-<form method="post" action="/invoices" class="space-y-6">
+<?php
+$mode = $mode ?? 'create';
+$invoice = $invoice ?? [];
+$items = $items ?? [];
+$isEdit = $mode === 'edit';
+$selectedCurrency = (string) old('currency', $invoice['currency'] ?? $business['default_currency'] ?? 'USD');
+$formAction = $isEdit ? '/invoices/' . $invoice['id'] : '/invoices';
+$cancelHref = $isEdit ? '/invoices/' . $invoice['id'] : '/invoices';
+?>
+<form method="post" action="<?= e($formAction) ?>" class="space-y-6">
     <?= csrf_field() ?>
     <section class="card p-5">
         <div class="grid gap-4 md:grid-cols-4">
@@ -7,20 +15,22 @@
                 <span class="label">Client</span>
                 <select class="field" name="client_id" data-client-select>
                     <option value="">Select client</option>
-                    <option value="__new__" <?= old('client_id') === '__new__' ? 'selected' : '' ?>>Create new client</option>
+                    <?php if (!$isEdit): ?>
+                        <option value="__new__" <?= old('client_id') === '__new__' ? 'selected' : '' ?>>Create new client</option>
+                    <?php endif; ?>
                     <?php foreach ($clients as $client): ?>
-                        <option value="<?= e($client['id']) ?>" <?= (string) old('client_id') === (string) $client['id'] ? 'selected' : '' ?>><?= e($client['name']) ?></option>
+                        <option value="<?= e($client['id']) ?>" <?= (string) old('client_id', (string) ($invoice['client_id'] ?? '')) === (string) $client['id'] ? 'selected' : '' ?>><?= e($client['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
-                <p class="field-help">Choose an existing client or create one while saving this invoice.</p>
+                <p class="field-help"><?= $isEdit ? 'Change the client this invoice is billed to.' : 'Choose an existing client or create one while saving this invoice.' ?></p>
             </label>
             <label>
                 <span class="label">Issue date *</span>
-                <input class="field" name="issue_date" type="date" required value="<?= e(date('Y-m-d')) ?>">
+                <input class="field" name="issue_date" type="date" required value="<?= e(old('issue_date', $invoice['issue_date'] ?? date('Y-m-d'))) ?>">
             </label>
             <label>
                 <span class="label">Due date *</span>
-                <input class="field" name="due_date" type="date" required value="<?= e(date('Y-m-d', strtotime('+' . (int) ($business['default_payment_terms'] ?? 14) . ' days'))) ?>">
+                <input class="field" name="due_date" type="date" required value="<?= e(old('due_date', $invoice['due_date'] ?? date('Y-m-d', strtotime('+' . (int) ($business['default_payment_terms'] ?? 14) . ' days')))) ?>">
             </label>
             <label>
                 <span class="label">Currency *</span>
@@ -33,12 +43,13 @@
             <label>
                 <span class="label">Status</span>
                 <select class="field" name="status">
-                    <option value="draft">Draft</option>
-                    <option value="sent">Sent</option>
+                    <option value="draft" <?= (string) old('status', $invoice['status'] ?? 'draft') === 'draft' ? 'selected' : '' ?>>Draft</option>
+                    <option value="sent" <?= (string) old('status', $invoice['status'] ?? 'draft') === 'sent' ? 'selected' : '' ?>>Sent</option>
                 </select>
             </label>
         </div>
 
+        <?php if (!$isEdit): ?>
         <div class="mt-5 hidden rounded-lg border border-brand-100 bg-brand-50/60 p-4" data-new-client-panel>
             <div class="mb-4">
                 <h2 class="text-sm font-black uppercase tracking-[0.14em] text-brand-800">New client</h2>
@@ -59,6 +70,7 @@
                 </label>
             </div>
         </div>
+        <?php endif; ?>
     </section>
 
     <section class="card p-5">
@@ -67,24 +79,30 @@
             <button type="button" class="btn-secondary" data-add-line="#invoice-lines" data-template="#invoice-line-template"><?= icon('plus') ?> Add item</button>
         </div>
         <div id="invoice-lines" class="space-y-3">
-            <?php \App\Core\View::partial('partials/line-item-row', ['taxes' => $taxes]); ?>
+            <?php if ($items !== []): ?>
+                <?php foreach ($items as $item): ?>
+                    <?php \App\Core\View::partial('partials/line-item-row', ['taxes' => $taxes, 'item' => $item]); ?>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <?php \App\Core\View::partial('partials/line-item-row', ['taxes' => $taxes]); ?>
+            <?php endif; ?>
         </div>
     </section>
 
     <section class="grid gap-6 lg:grid-cols-2">
         <label class="card p-5">
             <span class="label">Notes</span>
-            <textarea class="textarea" name="notes" rows="5"></textarea>
+            <textarea class="textarea" name="notes" rows="5"><?= e(old('notes', $invoice['notes'] ?? '')) ?></textarea>
         </label>
         <label class="card p-5">
             <span class="label">Terms</span>
-            <textarea class="textarea" name="terms" rows="5">Payment is due by the due date shown on this invoice.</textarea>
+            <textarea class="textarea" name="terms" rows="5"><?= e(old('terms', $invoice['terms'] ?? 'Payment is due by the due date shown on this invoice.')) ?></textarea>
         </label>
     </section>
 
     <div class="flex justify-end gap-3">
-        <a href="/invoices" class="btn-secondary">Cancel</a>
-        <button class="btn-primary"><?= icon('check') ?> Save invoice</button>
+        <a href="<?= e($cancelHref) ?>" class="btn-secondary">Cancel</a>
+        <button class="btn-primary"><?= icon('check') ?> <?= $isEdit ? 'Update invoice' : 'Save invoice' ?></button>
     </div>
 </form>
 

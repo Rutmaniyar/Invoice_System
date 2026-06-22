@@ -77,6 +77,102 @@ final class InstallerService
 
         $this->writeConfig($data, $databaseConfig);
         file_put_contents(STORAGE_PATH . '/installed.lock', 'Installed at ' . date(DATE_ATOM));
+
+        // Best-effort and never fatal: Composer dependencies (e.g. Dompdf) only improve PDF quality, the app
+        // works without them via a built-in fallback, so a failure here must not block a fresh install.
+        $dependencies = $this->installComposerDependencies();
+        if (!$dependencies['ok']) {
+            error_log('LedgerFlow install: Composer dependencies were not installed automatically - ' . $dependencies['message']);
+        }
+    }
+
+    /**
+     * Attempts to run `composer install` in the application root so optional Composer dependencies (Dompdf)
+     * are available without the operator needing shell access. Many shared hosts disable shell execution,
+     * so this degrades to a clear manual-instructions message rather than failing the caller.
+     *
+     * @return array{ok: bool, attempted: bool, message: string}
+     */
+    public function installComposerDependencies(): array
+    {
+        if (class_exists(\Dompdf\Dompdf::class)) {
+            return ['ok' => true, 'attempted' => false, 'message' => 'Composer dependencies are already installed.'];
+        }
+
+        if (!is_file(ROOT_PATH . '/composer.json')) {
+            return ['ok' => false, 'attempted' => false, 'message' => 'No composer.json found - nothing to install.'];
+        }
+
+        if (!function_exists('proc_open')) {
+            return [
+                'ok' => false,
+                'attempted' => false,
+                'message' => 'Shell execution is disabled on this server, so Composer dependencies cannot be installed automatically. '
+                    . 'Run "composer install --no-dev" via SSH, or ask your host to do so.',
+            ];
+        }
+
+        $composer = $this->locateComposerCommand();
+        if ($composer === null) {
+            return [
+                'ok' => false,
+                'attempted' => false,
+                'message' => 'Composer was not found on this server. Run "composer install --no-dev" via SSH, or ask your host to install Composer.',
+            ];
+        }
+
+        $command = $composer . ' install --no-dev --no-interaction --optimize-autoloader';
+        $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+        $process = @proc_open($command, $descriptors, $pipes, ROOT_PATH);
+        if (!is_resource($process)) {
+            return ['ok' => false, 'attempted' => true, 'message' => 'Could not start Composer on this server.'];
+        }
+
+        $output = trim((string) stream_get_contents($pipes[1]) . (string) stream_get_contents($pipes[2]));
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($process);
+
+        if ($exitCode !== 0) {
+            error_log('LedgerFlow: composer install exited with code ' . $exitCode . ' - ' . $output);
+            return ['ok' => false, 'attempted' => true, 'message' => 'Composer ran but reported an error. Check the server error log for details.'];
+        }
+
+        // The current process started before vendor/autoload.php existed, so it must be loaded explicitly
+        // to confirm the new classes are actually available rather than just trusting the exit code.
+        $autoload = ROOT_PATH . '/vendor/autoload.php';
+        if (is_file($autoload)) {
+            require $autoload;
+        }
+
+        return [
+            'ok' => class_exists(\Dompdf\Dompdf::class),
+            'attempted' => true,
+            'message' => 'Composer dependencies installed successfully.',
+        ];
+    }
+
+    private function locateComposerCommand(): ?string
+    {
+        $candidates = ['composer', 'composer.phar'];
+        foreach ($candidates as $candidate) {
+            $check = @proc_open(
+                escapeshellcmd($candidate) . ' --version',
+                [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+                $pipes,
+                ROOT_PATH
+            );
+            if (!is_resource($check)) {
+                continue;
+            }
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            if (proc_close($check) === 0) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /** Translates a raw PDO/driver error into a short, actionable message - no SQLSTATE codes or driver internals. */
