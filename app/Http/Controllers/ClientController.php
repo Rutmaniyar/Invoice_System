@@ -12,6 +12,7 @@ use App\Core\SignedOption;
 use App\Core\Validator;
 use App\Services\AuditLogger;
 use App\Services\PrivacyService;
+use App\Support\Paginator;
 use App\Support\ReferenceData;
 
 final class ClientController extends Controller
@@ -19,6 +20,7 @@ final class ClientController extends Controller
     public function index(Request $request): string
     {
         $search = trim((string) $request->input('q', ''));
+        $page = Paginator::page($request->input('page', 1));
         $params = [];
         $where = 'deleted_at IS NULL';
         if ($search !== '') {
@@ -26,12 +28,17 @@ final class ClientController extends Controller
             $params = ["%{$search}%", "%{$search}%", "%{$search}%"];
         }
 
-        $clients = app()->db()->fetchAll("SELECT * FROM clients WHERE {$where} ORDER BY name LIMIT 200", $params);
+        $total = (int) (app()->db()->fetch("SELECT COUNT(*) AS count FROM clients WHERE {$where}", $params)['count'] ?? 0);
+        $clients = app()->db()->fetchAll(
+            "SELECT * FROM clients WHERE {$where} ORDER BY name LIMIT " . Paginator::perPage() . ' OFFSET ' . Paginator::offset($page),
+            $params
+        );
 
         return $this->view('clients/index', [
             'title' => 'Clients',
             'clients' => $clients,
             'search' => $search,
+            'pagination' => Paginator::meta($total, $page),
             'currencies' => app()->db()->fetchAll('SELECT * FROM currencies WHERE is_active = 1 ORDER BY code'),
         ]);
     }

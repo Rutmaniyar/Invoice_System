@@ -80,7 +80,13 @@ final class PdfService
     /** @return array{0: array, 1: array} */
     private function loadExpense(int $expenseId): array
     {
-        $expense = app()->db()->fetch('SELECT * FROM expenses WHERE id = ?', [$expenseId]);
+        $expense = app()->db()->fetch(
+            'SELECT expenses.*, COALESCE(vendors.name, expenses.vendor) AS vendor_name, vendors.contact_name AS vendor_contact_name,
+                    vendors.email AS vendor_email, vendors.phone AS vendor_phone, vendors.website AS vendor_website,
+                    vendors.billing_address AS vendor_billing_address, vendors.tax_number AS vendor_tax_number
+             FROM expenses LEFT JOIN vendors ON vendors.id = expenses.vendor_id WHERE expenses.id = ?',
+            [$expenseId]
+        );
         $business = (new SettingsService())->business();
 
         return [$business, $expense ?? []];
@@ -91,7 +97,9 @@ final class PdfService
     {
         (new InvoiceService())->refreshStatus($invoiceId);
         $invoice = app()->db()->fetch(
-            'SELECT invoices.*, clients.name AS client_name, clients.email AS client_email, clients.billing_address
+            'SELECT invoices.*, clients.name AS client_name, clients.contact_name AS client_contact_name, clients.email AS client_email,
+                    clients.phone AS client_phone, clients.website AS client_website, clients.billing_address, clients.shipping_address,
+                    clients.tax_number AS client_tax_number
              FROM invoices INNER JOIN clients ON clients.id = invoices.client_id WHERE invoices.id = ?',
             [$invoiceId]
         );
@@ -106,7 +114,9 @@ final class PdfService
     private function loadQuote(int $quoteId): array
     {
         $quote = app()->db()->fetch(
-            'SELECT quotes.*, clients.name AS client_name, clients.email AS client_email, clients.billing_address
+            'SELECT quotes.*, clients.name AS client_name, clients.contact_name AS client_contact_name, clients.email AS client_email,
+                    clients.phone AS client_phone, clients.website AS client_website, clients.billing_address, clients.shipping_address,
+                    clients.tax_number AS client_tax_number
              FROM quotes INNER JOIN clients ON clients.id = quotes.client_id WHERE quotes.id = ?',
             [$quoteId]
         );
@@ -200,9 +210,12 @@ final class PdfService
         if ($addressLine !== '') {
             $ops[] = $this->text($headerTextX, $y + 30, 'F1', 9, $addressLine, [0.39, 0.45, 0.53]);
         }
+        if (trim((string) ($business['tax_number'] ?? '')) !== '') {
+            $ops[] = $this->text($headerTextX, $y + 43, 'F1', 9, 'Tax/VAT: ' . (string) $business['tax_number'], [0.39, 0.45, 0.53]);
+        }
         $contactLine = trim((string) ($business['email'] ?? '') . ($business['phone'] ? ' · ' . $business['phone'] : ''));
         if ($contactLine !== '') {
-            $ops[] = $this->text($headerTextX, $y + 43, 'F1', 9, $contactLine, [0.39, 0.45, 0.53]);
+            $ops[] = $this->text($headerTextX, $y + (trim((string) ($business['tax_number'] ?? '')) !== '' ? 56 : 43), 'F1', 9, $contactLine, [0.39, 0.45, 0.53]);
         }
 
         $docLabel = $isInvoice ? 'INVOICE' : 'QUOTE';
@@ -229,13 +242,23 @@ final class PdfService
         $ops[] = $this->text($left, $y, 'F2', 9, 'BILL TO', [0.39, 0.45, 0.53]);
         $y += 16;
         $ops[] = $this->text($left, $y, 'F2', 11, (string) ($document['client_name'] ?? ''), [0.07, 0.09, 0.15]);
-        if (!empty($document['client_email'])) {
+        foreach (['client_contact_name', 'client_email', 'client_phone', 'client_website'] as $field) {
+            if (!empty($document[$field])) {
+                $y += 14;
+                $ops[] = $this->text($left, $y, 'F1', 9, (string) $document[$field], [0.39, 0.45, 0.53]);
+            }
+        }
+        if (!empty($document['client_tax_number'])) {
             $y += 14;
-            $ops[] = $this->text($left, $y, 'F1', 9, (string) $document['client_email'], [0.39, 0.45, 0.53]);
+            $ops[] = $this->text($left, $y, 'F1', 9, 'Tax/VAT: ' . (string) $document['client_tax_number'], [0.39, 0.45, 0.53]);
         }
         foreach ($this->wrapLines((string) ($document['billing_address'] ?? ''), 70) as $line) {
             $y += 13;
             $ops[] = $this->text($left, $y, 'F1', 9, $line, [0.39, 0.45, 0.53]);
+        }
+        foreach ($this->wrapLines((string) ($document['shipping_address'] ?? ''), 70) as $index => $line) {
+            $y += 13;
+            $ops[] = $this->text($left, $y, 'F1', 9, ($index === 0 ? 'Ship to: ' : '') . $line, [0.39, 0.45, 0.53]);
         }
 
         $y += 26;
@@ -308,6 +331,13 @@ final class PdfService
 
         $businessName = (string) ($business['business_name'] ?? 'Business');
         $ops[] = $this->text($headerTextX, $y + 14, 'F2', 15, $businessName, [0.07, 0.09, 0.15]);
+        $addressLine = trim(($business['address_line1'] ?? '') . ' ' . ($business['city'] ?? '') . ' ' . ($business['country'] ?? ''));
+        if ($addressLine !== '') {
+            $ops[] = $this->text($headerTextX, $y + 30, 'F1', 9, $addressLine, [0.39, 0.45, 0.53]);
+        }
+        if (trim((string) ($business['tax_number'] ?? '')) !== '') {
+            $ops[] = $this->text($headerTextX, $y + 43, 'F1', 9, 'Tax/VAT: ' . (string) $business['tax_number'], [0.39, 0.45, 0.53]);
+        }
 
         $ops[] = $this->text($right - 160, $y, 'F2', 18, 'EXPENSE RECEIPT', $brandRgb, true);
         $ops[] = $this->text($right - 160, $y + 20, 'F1', 9, 'Date: ' . (string) ($expense['expense_date'] ?? ''), [0.39, 0.45, 0.53], true);
@@ -317,7 +347,12 @@ final class PdfService
 
         $y += 26;
         $rows = [
-            ['Vendor', (string) ($expense['vendor'] ?? '')],
+            ['Vendor', (string) ($expense['vendor_name'] ?? $expense['vendor'] ?? '')],
+            ['Vendor contact', (string) ($expense['vendor_contact_name'] ?? '')],
+            ['Vendor email', (string) ($expense['vendor_email'] ?? '')],
+            ['Vendor phone', (string) ($expense['vendor_phone'] ?? '')],
+            ['Vendor tax/VAT', (string) ($expense['vendor_tax_number'] ?? '')],
+            ['Vendor address', (string) ($expense['vendor_billing_address'] ?? '')],
             ['Category', (string) ($expense['category'] ?? '')],
             ['Payment method', (string) ($expense['payment_method'] ?? '')],
             ['Amount', money($expense['amount'] ?? 0, $currency)],
@@ -328,6 +363,9 @@ final class PdfService
         $total = (float) ($expense['amount'] ?? 0) + (float) ($expense['tax_amount'] ?? 0);
 
         foreach ($rows as [$label, $value]) {
+            if (trim($value) === '') {
+                continue;
+            }
             $ops[] = $this->text($left, $y, 'F2', 9, strtoupper($label), [0.39, 0.45, 0.53]);
             $ops[] = $this->text($right, $y, 'F1', 10, $value, [0.13, 0.15, 0.20], true);
             $y += 20;

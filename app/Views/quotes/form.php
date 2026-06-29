@@ -13,12 +13,16 @@ $cancelHref = $isEdit ? '/quotes/' . $quote['id'] : '/quotes';
         <div class="grid gap-4 md:grid-cols-4">
             <label class="md:col-span-2">
                 <span class="label">Client *</span>
-                <select class="field" name="client_id" required>
+                <select class="field" name="client_id" required data-client-select>
                     <option value="">Select client</option>
+                    <?php if (!$isEdit): ?>
+                        <option value="__new__" <?= old('client_id') === '__new__' ? 'selected' : '' ?>>Create new client</option>
+                    <?php endif; ?>
                     <?php foreach ($clients as $client): ?>
                         <option value="<?= e($client['id']) ?>" <?= (string) old('client_id', (string) ($quote['client_id'] ?? '')) === (string) $client['id'] ? 'selected' : '' ?>><?= e($client['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
+                <p class="field-help"><?= $isEdit ? 'Change the client this quote is for.' : 'Choose an existing client or create one while saving this quote.' ?></p>
             </label>
             <label>
                 <span class="label">Issue date *</span>
@@ -44,6 +48,29 @@ $cancelHref = $isEdit ? '/quotes/' . $quote['id'] : '/quotes';
                 </select>
             </label>
         </div>
+
+        <?php if (!$isEdit): ?>
+        <div class="mt-5 hidden rounded-lg border border-brand-100 bg-brand-50/60 p-4" data-new-client-panel>
+            <div class="mb-4">
+                <h2 class="text-sm font-black uppercase tracking-[0.14em] text-brand-800">New client</h2>
+                <p class="section-copy">A client profile will be created automatically before the quote is saved.</p>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <label>
+                    <span class="label">Client name *</span>
+                    <input class="field" name="new_client_name" value="<?= e(old('new_client_name')) ?>" maxlength="190" data-new-client-required>
+                </label>
+                <label>
+                    <span class="label">Email</span>
+                    <input class="field" name="new_client_email" type="email" value="<?= e(old('new_client_email')) ?>" autocomplete="email">
+                </label>
+                <label class="md:col-span-2">
+                    <span class="label">Billing address</span>
+                    <textarea class="textarea" name="new_client_billing_address" rows="3"><?= e(old('new_client_billing_address')) ?></textarea>
+                </label>
+            </div>
+        </div>
+        <?php endif; ?>
     </section>
 
     <section class="card p-5">

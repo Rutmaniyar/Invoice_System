@@ -107,6 +107,7 @@ $systemIssues = array_values(array_filter($systemStatus, static fn (array $check
                 <div class="mt-5 space-y-4">
                     <label><span class="label">Invoice prefix</span><input class="field" name="invoice_prefix" value="<?= e($settings['invoice_prefix']) ?>"></label>
                     <label><span class="label">Quote prefix</span><input class="field" name="quote_prefix" value="<?= e($settings['quote_prefix']) ?>"></label>
+                    <label><span class="label">Default invoice terms</span><textarea class="textarea" name="default_invoice_terms" rows="4"><?= e($settings['default_invoice_terms']) ?></textarea></label>
                     <label><span class="label">Payment methods</span><textarea class="textarea" name="payment_methods" rows="4"><?= e($settings['payment_methods']) ?></textarea></label>
                     <label><span class="label">Data retention years</span><input class="field" name="data_retention_years" type="number" min="1" value="<?= e($settings['data_retention_years']) ?>"></label>
                 </div>

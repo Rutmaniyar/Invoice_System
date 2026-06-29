@@ -13,7 +13,7 @@
                     <?php foreach ($expenses as $expense): ?>
                         <tr>
                             <td><?= e($expense['expense_date']) ?></td>
-                            <td class="font-bold"><a class="text-brand-700 hover:underline" href="/expenses/<?= e($expense['id']) ?>"><?= e($expense['vendor']) ?></a></td>
+                            <td class="font-bold"><a class="text-brand-700 hover:underline" href="/expenses/<?= e($expense['id']) ?>"><?= e($expense['vendor_name']) ?></a></td>
                             <td><?= e($expense['category']) ?></td>
                             <td class="text-right font-bold"><?= money($expense['amount'], $expense['currency']) ?></td>
                             <td class="text-right">
@@ -37,6 +37,7 @@
                     <?php endif; ?>
                 </tbody>
             </table>
+            <?php \App\Core\View::partial('partials/pagination', ['pagination' => $pagination, 'path' => '/expenses']); ?>
         </div>
     </div>
 
@@ -44,7 +45,30 @@
         <?= csrf_field() ?>
         <h2 class="text-lg font-black text-ink-900">Record expense</h2>
         <div class="mt-5 space-y-4">
-            <label><span class="label">Vendor *</span><input class="field" name="vendor" required></label>
+            <label>
+                <span class="label">Vendor *</span>
+                <select class="field" name="vendor_id" required data-vendor-select>
+                    <option value="">Select vendor</option>
+                    <option value="__new__" <?= old('vendor_id') === '__new__' ? 'selected' : '' ?>>Create new vendor</option>
+                    <?php foreach ($vendors as $vendor): ?>
+                        <option value="<?= e($vendor['id']) ?>" <?= (string) old('vendor_id') === (string) $vendor['id'] ? 'selected' : '' ?>><?= e($vendor['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <p class="field-help"><a class="font-semibold text-brand-700 underline-offset-2 hover:underline" href="/vendors">Manage vendors</a></p>
+            </label>
+            <div class="hidden rounded-lg border border-brand-100 bg-brand-50/60 p-4" data-new-vendor-panel>
+                <div class="mb-4">
+                    <h3 class="text-sm font-black uppercase tracking-[0.14em] text-brand-800">New vendor</h3>
+                    <p class="section-copy">A vendor profile will be created automatically before the expense is saved.</p>
+                </div>
+                <div class="space-y-4">
+                    <label><span class="label">Vendor name *</span><input class="field" name="new_vendor_name" maxlength="190" value="<?= e(old('new_vendor_name')) ?>" data-new-vendor-required></label>
+                    <label><span class="label">Email</span><input class="field" name="new_vendor_email" type="email" maxlength="190" value="<?= e(old('new_vendor_email')) ?>"></label>
+                    <label><span class="label">Phone</span><input class="field" name="new_vendor_phone" maxlength="80" value="<?= e(old('new_vendor_phone')) ?>"></label>
+                    <label><span class="label">Tax/VAT number</span><input class="field" name="new_vendor_tax_number" maxlength="120" value="<?= e(old('new_vendor_tax_number')) ?>"></label>
+                    <label><span class="label">Billing address</span><textarea class="textarea" name="new_vendor_billing_address" rows="3"><?= e(old('new_vendor_billing_address')) ?></textarea></label>
+                </div>
+            </div>
             <label><span class="label">Category *</span><input class="field" name="category" required list="expense-categories"></label>
             <datalist id="expense-categories"><option value="Software"><option value="Office"><option value="Travel"><option value="Marketing"><option value="Professional services"></datalist>
             <label><span class="label">Expense date *</span><input class="field" name="expense_date" type="date" value="<?= e(date('Y-m-d')) ?>" required></label>

@@ -44,6 +44,22 @@
     syncClientPanel();
   });
 
+  document.querySelectorAll('[data-vendor-select]').forEach((select) => {
+    const form = select.closest('form');
+    const panel = form?.querySelector('[data-new-vendor-panel]');
+    const requiredFields = form ? form.querySelectorAll('[data-new-vendor-required]') : [];
+    const syncVendorPanel = () => {
+      const creatingVendor = select.value === '__new__';
+      panel?.classList.toggle('hidden', !creatingVendor);
+      requiredFields.forEach((field) => {
+        field.toggleAttribute('required', creatingVendor);
+      });
+    };
+
+    select.addEventListener('change', syncVendorPanel);
+    syncVendorPanel();
+  });
+
   document.addEventListener('click', (event) => {
     const remove = event.target.closest('[data-remove-line]');
     if (remove) {

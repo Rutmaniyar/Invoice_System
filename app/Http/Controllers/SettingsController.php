@@ -53,6 +53,7 @@ final class SettingsController extends Controller
             'settings' => [
                 'invoice_prefix' => (new SettingsService())->get('invoice_prefix', 'INV-'),
                 'quote_prefix' => (new SettingsService())->get('quote_prefix', 'QUO-'),
+                'default_invoice_terms' => (new SettingsService())->get('default_invoice_terms', 'Payment is due by the due date shown on this invoice.'),
                 'payment_methods' => (new SettingsService())->get('payment_methods', ''),
                 'data_retention_years' => (new SettingsService())->get('data_retention_years', '7'),
             ],
@@ -134,14 +135,15 @@ final class SettingsController extends Controller
         $validator = (new Validator($data))
             ->integer('data_retention_years', 'Data retention years')
             ->max('invoice_prefix', 20, 'Invoice prefix')
-            ->max('quote_prefix', 20, 'Quote prefix');
+            ->max('quote_prefix', 20, 'Quote prefix')
+            ->max('default_invoice_terms', 5000, 'Default invoice terms');
 
         if ($validator->fails()) {
             $this->backWithErrors($validator->errors(), $data);
         }
 
         $settings = new SettingsService();
-        foreach (['invoice_prefix', 'quote_prefix', 'payment_methods', 'data_retention_years'] as $key) {
+        foreach (['invoice_prefix', 'quote_prefix', 'default_invoice_terms', 'payment_methods', 'data_retention_years'] as $key) {
             $settings->set($key, (string) $request->input($key, ''));
         }
 

@@ -17,6 +17,7 @@ use App\Services\MailerService;
 use App\Services\NumberGenerator;
 use App\Services\PdfService;
 use App\Services\SettingsService;
+use App\Support\Paginator;
 use App\Support\ReferenceData;
 
 final class InvoiceController extends Controller
@@ -24,6 +25,7 @@ final class InvoiceController extends Controller
     public function index(Request $request): string
     {
         $status = (string) $request->input('status', '');
+        $page = Paginator::page($request->input('page', 1));
         $params = [];
         $where = '1 = 1';
         if ($status !== '') {
@@ -31,11 +33,12 @@ final class InvoiceController extends Controller
             $params[] = $status;
         }
 
+        $total = (int) (app()->db()->fetch("SELECT COUNT(*) AS count FROM invoices WHERE {$where}", $params)['count'] ?? 0);
         $invoices = app()->db()->fetchAll(
             "SELECT invoices.*, clients.name AS client_name
              FROM invoices INNER JOIN clients ON clients.id = invoices.client_id
              WHERE {$where}
-             ORDER BY invoices.issue_date DESC, invoices.id DESC LIMIT 250",
+             ORDER BY invoices.issue_date DESC, invoices.id DESC LIMIT " . Paginator::perPage() . ' OFFSET ' . Paginator::offset($page),
             $params
         );
 
@@ -43,6 +46,7 @@ final class InvoiceController extends Controller
             'title' => 'Invoices',
             'invoices' => $invoices,
             'status' => $status,
+            'pagination' => Paginator::meta($total, $page),
         ]);
     }
 
@@ -55,6 +59,7 @@ final class InvoiceController extends Controller
             'currencies' => app()->db()->fetchAll('SELECT * FROM currencies WHERE is_active = 1 ORDER BY code'),
             'taxes' => app()->db()->fetchAll('SELECT * FROM taxes WHERE is_active = 1 ORDER BY name'),
             'business' => (new SettingsService())->business(),
+            'defaultTerms' => (new SettingsService())->get('default_invoice_terms', 'Payment is due by the due date shown on this invoice.'),
         ]);
     }
 
@@ -86,6 +91,7 @@ final class InvoiceController extends Controller
             'currencies' => app()->db()->fetchAll('SELECT * FROM currencies WHERE is_active = 1 ORDER BY code'),
             'taxes' => app()->db()->fetchAll('SELECT * FROM taxes WHERE is_active = 1 ORDER BY name'),
             'business' => (new SettingsService())->business(),
+            'defaultTerms' => (new SettingsService())->get('default_invoice_terms', 'Payment is due by the due date shown on this invoice.'),
         ]);
     }
 
@@ -293,7 +299,9 @@ final class InvoiceController extends Controller
     {
         (new InvoiceService())->refreshStatus((int) $id);
         $invoice = app()->db()->fetch(
-            'SELECT invoices.*, clients.name AS client_name, clients.email AS client_email, clients.billing_address
+            'SELECT invoices.*, clients.name AS client_name, clients.contact_name AS client_contact_name, clients.email AS client_email,
+                    clients.phone AS client_phone, clients.website AS client_website, clients.billing_address, clients.shipping_address,
+                    clients.tax_number AS client_tax_number
              FROM invoices INNER JOIN clients ON clients.id = invoices.client_id WHERE invoices.id = ?',
             [(int) $id]
         );
@@ -333,6 +341,61 @@ final class InvoiceController extends Controller
 
         (new InvoiceService())->recordPayment((int) $id, $data);
         Session::flash('success', 'Payment recorded.');
+        $this->redirect('/invoices/' . $id);
+    }
+
+    public function reminder(Request $request, string $id): never
+    {
+        (new InvoiceService())->refreshStatus((int) $id);
+        $invoice = app()->db()->fetch(
+            'SELECT invoices.*, clients.name AS client_name, clients.email AS client_email
+             FROM invoices INNER JOIN clients ON clients.id = invoices.client_id WHERE invoices.id = ?',
+            [(int) $id]
+        );
+
+        if (!$invoice) {
+            Session::flash('errors', ['Invoice not found.']);
+            $this->redirect('/invoices');
+        }
+
+        $sendable = !in_array((string) $invoice['status'], ['draft', 'paid', 'void'], true)
+            && (float) ($invoice['balance_due'] ?? 0) > 0;
+        if (!$sendable) {
+            Session::flash('errors', ['Reminder not sent because this invoice is not currently unpaid and sendable.']);
+            $this->redirect('/invoices/' . $id);
+        }
+
+        if (trim((string) ($invoice['client_email'] ?? '')) === '' || !filter_var($invoice['client_email'], FILTER_VALIDATE_EMAIL)) {
+            AuditLogger::log('invoice.reminder_not_sent_no_email', 'invoice', (int) $id);
+            Session::flash('errors', ['Reminder not sent: no client email found in database.']);
+            $this->redirect('/invoices/' . $id);
+        }
+
+        [$subject, $body] = (new MailerService())->template('payment_reminder', [
+            'invoice_number' => $invoice['invoice_number'],
+            'invoice_total' => money($invoice['total'], $invoice['currency']),
+            'balance_due' => money($invoice['balance_due'], $invoice['currency']),
+            'due_date' => $invoice['due_date'],
+            'client_name' => $invoice['client_name'],
+            'business_name' => (new SettingsService())->business()['business_name'] ?? config('app.name'),
+        ]);
+
+        $mailer = new MailerService();
+        $sent = $mailer->send($invoice['client_email'], $subject, $body, [[
+            'name' => $invoice['invoice_number'] . '.pdf',
+            'mime' => 'application/pdf',
+            'content' => (new PdfService())->invoicePdf((int) $id),
+        ]]);
+
+        if ($sent) {
+            app()->db()->execute('UPDATE invoices SET last_reminder_sent_at = NOW(), updated_at = NOW() WHERE id = ?', [(int) $id]);
+            AuditLogger::log('invoice.reminder_sent', 'invoice', (int) $id);
+            Session::flash('success', 'Reminder sent to ' . $invoice['client_email'] . '.');
+        } else {
+            AuditLogger::log('invoice.reminder_failed', 'invoice', (int) $id, ['error' => $mailer->lastError()]);
+            Session::flash('errors', ['Reminder not sent: ' . ($mailer->lastError() ?? 'the mail transport rejected the message.')]);
+        }
+
         $this->redirect('/invoices/' . $id);
     }
 

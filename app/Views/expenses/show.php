@@ -7,7 +7,7 @@ $receiptPath = trim((string) ($expense['receipt_path'] ?? ''));
         <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
                 <p class="text-sm font-bold uppercase tracking-wide text-brand-700">Expense</p>
-                <h2 class="text-2xl font-black text-ink-900 break-words"><?= e($expense['vendor']) ?></h2>
+                <h2 class="text-2xl font-black text-ink-900 break-words"><?= e($expense['vendor_name'] ?? $expense['vendor']) ?></h2>
                 <p class="mt-1 text-ink-500"><?= e($expense['category']) ?> · <?= e($expense['expense_date']) ?></p>
             </div>
             <span class="badge bg-ink-100 text-ink-700 self-start">Recorded</span>
@@ -47,6 +47,19 @@ $receiptPath = trim((string) ($expense['receipt_path'] ?? ''));
             <div class="mt-6 rounded-lg border border-ink-100 bg-ink-50 p-4">
                 <p class="text-xs font-bold uppercase text-ink-500">Notes</p>
                 <p class="mt-1 whitespace-pre-line break-words text-sm text-ink-700"><?= e($expense['notes']) ?></p>
+            </div>
+        <?php endif; ?>
+
+        <?php if (trim((string) ($expense['vendor_contact_name'] ?? $expense['vendor_email'] ?? $expense['vendor_phone'] ?? $expense['vendor_tax_number'] ?? $expense['vendor_billing_address'] ?? '')) !== ''): ?>
+            <div class="mt-6 rounded-lg border border-ink-100 bg-ink-50 p-4">
+                <p class="text-xs font-bold uppercase text-ink-500">Vendor details</p>
+                <div class="mt-2 space-y-1 text-sm text-ink-700">
+                    <?php if (!empty($expense['vendor_contact_name'])): ?><p><strong>Contact:</strong> <?= e($expense['vendor_contact_name']) ?></p><?php endif; ?>
+                    <?php if (!empty($expense['vendor_email'])): ?><p><strong>Email:</strong> <?= e($expense['vendor_email']) ?></p><?php endif; ?>
+                    <?php if (!empty($expense['vendor_phone'])): ?><p><strong>Phone:</strong> <?= e($expense['vendor_phone']) ?></p><?php endif; ?>
+                    <?php if (!empty($expense['vendor_tax_number'])): ?><p><strong>Tax/VAT:</strong> <?= e($expense['vendor_tax_number']) ?></p><?php endif; ?>
+                    <?php if (!empty($expense['vendor_billing_address'])): ?><p class="whitespace-pre-line"><strong>Address:</strong><br><?= e($expense['vendor_billing_address']) ?></p><?php endif; ?>
+                </div>
             </div>
         <?php endif; ?>
     </div>

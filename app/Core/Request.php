@@ -25,12 +25,12 @@ final class Request
 
     public function input(string $key, mixed $default = null): mixed
     {
-        return $_POST[$key] ?? $_GET[$key] ?? $default;
+        return $this->clean($_POST[$key] ?? $_GET[$key] ?? $default);
     }
 
     public function all(): array
     {
-        return array_merge($_GET, $_POST);
+        return $this->clean(array_merge($_GET, $_POST));
     }
 
     public function only(array $keys): array
@@ -62,5 +62,14 @@ final class Request
 
         $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
         return $forwarded !== '' ? trim(explode(',', $forwarded)[0]) : $remoteAddr;
+    }
+
+    private function clean(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            return array_map(fn (mixed $item): mixed => $this->clean($item), $value);
+        }
+
+        return is_string($value) ? trim($value) : $value;
     }
 }

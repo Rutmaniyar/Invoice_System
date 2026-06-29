@@ -161,6 +161,7 @@ function icon(string $name, string $class = 'h-4 w-4'): string
         'invoices' => '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
         'payments' => '<path d="M3 7h18v10H3V7Z"/><path d="M3 10h18M7 15h4"/>',
         'expenses' => '<path d="M12 3v18M7 7h7.5a3.5 3.5 0 0 1 0 7H9a3 3 0 0 0 0 6h8"/>',
+        'vendors' => '<path d="M4 7h16v12H4V7Z"/><path d="M8 7V5h8v2M8 12h8M8 16h5"/>',
         'reports' => '<path d="M4 19V5M9 19v-8M14 19V8M19 19v-5"/>',
         'settings' => '<path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z"/><path d="m19.4 15 .6 2.2-2.1 1.2-1.6-1.1a7 7 0 0 1-1.9 1.1L14 21h-4l-.4-2.6a7 7 0 0 1-1.9-1.1l-1.6 1.1L4 17.2l.6-2.2A7.8 7.8 0 0 1 4 13l-2-1 1.2-3 2.2.2A8.4 8.4 0 0 1 7 7.6L6.8 5.4 9.8 4 11 6a7 7 0 0 1 2 0l1.2-2 3 1.4-.2 2.2a8.4 8.4 0 0 1 1.6 1.6l2.2-.2L22 12l-2 1a7.8 7.8 0 0 1-.6 2Z"/>',
         'plus' => '<path d="M12 5v14M5 12h14"/>',

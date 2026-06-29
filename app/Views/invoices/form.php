@@ -96,7 +96,7 @@ $cancelHref = $isEdit ? '/invoices/' . $invoice['id'] : '/invoices';
         </label>
         <label class="card p-5">
             <span class="label">Terms</span>
-            <textarea class="textarea" name="terms" rows="5"><?= e(old('terms', $invoice['terms'] ?? 'Payment is due by the due date shown on this invoice.')) ?></textarea>
+            <textarea class="textarea" name="terms" rows="5"><?= e(old('terms', $invoice['terms'] ?? $defaultTerms ?? 'Payment is due by the due date shown on this invoice.')) ?></textarea>
         </label>
     </section>
 

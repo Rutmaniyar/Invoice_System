@@ -17,19 +17,22 @@ use App\Services\MailerService;
 use App\Services\NumberGenerator;
 use App\Services\PdfService;
 use App\Services\SettingsService;
+use App\Support\Paginator;
 use App\Support\ReferenceData;
 
 final class QuoteController extends Controller
 {
-    public function index(): string
+    public function index(Request $request): string
     {
+        $page = Paginator::page($request->input('page', 1));
+        $total = (int) (app()->db()->fetch('SELECT COUNT(*) AS count FROM quotes')['count'] ?? 0);
         $quotes = app()->db()->fetchAll(
             'SELECT quotes.*, clients.name AS client_name
              FROM quotes INNER JOIN clients ON clients.id = quotes.client_id
-             ORDER BY quotes.issue_date DESC, quotes.id DESC LIMIT 200'
+             ORDER BY quotes.issue_date DESC, quotes.id DESC LIMIT ' . Paginator::perPage() . ' OFFSET ' . Paginator::offset($page)
         );
 
-        return $this->view('quotes/index', ['title' => 'Quotes', 'quotes' => $quotes]);
+        return $this->view('quotes/index', ['title' => 'Quotes', 'quotes' => $quotes, 'pagination' => Paginator::meta($total, $page)]);
     }
 
     public function create(): string
@@ -50,36 +53,80 @@ final class QuoteController extends Controller
         $currencyCodes = ReferenceData::currencyCodes(app()->db()->fetchAll('SELECT * FROM currencies WHERE is_active = 1 ORDER BY code'));
         $currency = SignedOption::verify('currency', $data['currency'] ?? '', $currencyCodes);
         $data['currency'] = $currency ?? '';
+        $clientSelection = trim((string) ($data['client_id'] ?? ''));
+        $createClient = $clientSelection === '__new__' || trim((string) ($data['new_client_name'] ?? '')) !== '';
+        $clientId = null;
 
         $validator = (new Validator($data))
-            ->required('client_id', 'Client')
             ->required('issue_date', 'Issue date')
             ->date('issue_date', 'Issue date')
             ->date('valid_until', 'Valid until')
             ->required('currency', 'Currency')
-            ->in('status', ['draft', 'sent'], 'Status')
-            ->integer('client_id', 'Client');
+            ->in('status', ['draft', 'sent'], 'Status');
+
+        $errors = $validator->errors();
+
+        if ($createClient) {
+            $clientValidator = (new Validator($data))
+                ->required('new_client_name', 'New client name')
+                ->max('new_client_name', 190, 'New client name')
+                ->email('new_client_email', 'New client email');
+            $errors = array_merge($errors, $clientValidator->errors());
+            $data['client_id'] = '__new__';
+        } elseif ($clientSelection === '' || filter_var($clientSelection, FILTER_VALIDATE_INT) === false) {
+            $errors['client_id'] = 'Choose an existing client or create a new client.';
+        } else {
+            $client = app()->db()->fetch('SELECT id FROM clients WHERE id = ? AND deleted_at IS NULL', [(int) $clientSelection]);
+            if (!$client) {
+                $errors['client_id'] = 'Selected client was not found.';
+            } else {
+                $clientId = (int) $client['id'];
+            }
+        }
 
         $calculated = (new InvoiceCalculator())->fromRequest($data);
         if ($calculated['errors'] !== [] || $calculated['items'] === []) {
-            $errors = $validator->errors();
             $errors['items'] = $calculated['errors'] !== []
                 ? implode(' ', $calculated['errors'])
                 : 'At least one line item is required.';
+        }
+
+        if ($errors !== []) {
             $this->backWithErrors($errors, $data);
         }
 
-        if ($validator->fails()) {
-            $this->backWithErrors($validator->errors(), $data);
-        }
+        $result = app()->db()->transaction(function () use ($data, $calculated, $createClient, $clientId): array {
+            $reusedExistingClient = false;
+            if ($createClient) {
+                $existing = ClientController::findDuplicate(
+                    trim((string) $data['new_client_name']),
+                    (string) ($data['new_client_email'] ?? '')
+                );
+                if ($existing !== null) {
+                    $clientId = (int) $existing['id'];
+                    $reusedExistingClient = true;
+                } else {
+                    $clientId = app()->db()->insert(
+                        'INSERT INTO clients (type, name, email, billing_address, currency, data_processing_basis)
+                         VALUES (?, ?, ?, ?, ?, ?)',
+                        [
+                            'business',
+                            trim((string) $data['new_client_name']),
+                            trim((string) ($data['new_client_email'] ?? '')) ?: null,
+                            trim((string) ($data['new_client_billing_address'] ?? '')) ?: null,
+                            $data['currency'],
+                            'contract',
+                        ]
+                    );
+                }
+            }
 
-        $quoteId = app()->db()->transaction(function () use ($data, $calculated): int {
             $quoteId = app()->db()->insert(
                 'INSERT INTO quotes
                  (client_id, quote_number, status, issue_date, valid_until, currency, subtotal, discount_total, tax_total, total, notes, terms, created_by)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
-                    (int) $data['client_id'],
+                    $clientId,
                     (new NumberGenerator())->nextQuoteNumber(),
                     $data['status'] ?? 'draft',
                     $data['issue_date'],
@@ -103,9 +150,13 @@ final class QuoteController extends Controller
                 );
             }
 
-            return $quoteId;
+            return ['quote_id' => $quoteId, 'client_id' => (int) $clientId, 'created_client' => $createClient && !$reusedExistingClient];
         });
 
+        if ($result['created_client']) {
+            AuditLogger::log('client.created_from_quote', 'client', $result['client_id']);
+        }
+        $quoteId = (int) $result['quote_id'];
         AuditLogger::log('quote.created', 'quote', $quoteId);
         Session::flash('success', 'Quote created.');
         $this->redirect('/quotes/' . $quoteId);
@@ -114,7 +165,9 @@ final class QuoteController extends Controller
     public function show(Request $request, string $id): string
     {
         $quote = app()->db()->fetch(
-            'SELECT quotes.*, clients.name AS client_name, clients.email AS client_email, clients.billing_address
+            'SELECT quotes.*, clients.name AS client_name, clients.contact_name AS client_contact_name, clients.email AS client_email,
+                    clients.phone AS client_phone, clients.website AS client_website, clients.billing_address, clients.shipping_address,
+                    clients.tax_number AS client_tax_number
              FROM quotes INNER JOIN clients ON clients.id = quotes.client_id WHERE quotes.id = ?',
             [(int) $id]
         );

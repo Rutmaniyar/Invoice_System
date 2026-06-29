@@ -16,6 +16,7 @@ use App\Http\Controllers\RecurringController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UpdateController;
+use App\Http\Controllers\VendorController;
 
 $app = require dirname(__DIR__) . '/bootstrap.php';
 $router = $app->router();
@@ -72,12 +73,17 @@ $router->post('/invoices/{id}', [InvoiceController::class, 'update'], ['auth', '
 $router->post('/invoices/{id}/delete', [InvoiceController::class, 'destroy'], ['auth', 'can:invoices.manage', 'throttle:30,1', 'csrf']);
 $router->get('/invoices/{id}/pdf', [InvoiceController::class, 'pdf'], ['auth', 'can:invoices.view']);
 $router->post('/invoices/{id}/send', [InvoiceController::class, 'send'], ['auth', 'can:invoices.manage', 'throttle:20,5', 'csrf']);
+$router->post('/invoices/{id}/reminder', [InvoiceController::class, 'reminder'], ['auth', 'can:invoices.manage', 'throttle:20,5', 'csrf']);
 $router->post('/invoices/{id}/payments', [InvoiceController::class, 'recordPayment'], ['auth', 'can:payments.manage', 'throttle:60,1', 'csrf']);
 $router->post('/invoices/{id}/payments/{paymentId}/delete', [InvoiceController::class, 'deletePayment'], ['auth', 'can:payments.manage', 'throttle:30,1', 'csrf']);
 $router->post('/invoices/{id}/refunds', [InvoiceController::class, 'recordRefund'], ['auth', 'can:payments.manage', 'throttle:30,1', 'csrf']);
 
 $router->get('/recurring', [RecurringController::class, 'index'], ['auth', 'can:invoices.manage']);
 $router->post('/recurring', [RecurringController::class, 'store'], ['auth', 'can:invoices.manage', 'throttle:30,1', 'csrf']);
+$router->get('/vendors', [VendorController::class, 'index'], ['auth', 'can:expenses.manage']);
+$router->post('/vendors', [VendorController::class, 'store'], ['auth', 'can:expenses.manage', 'throttle:60,1', 'csrf']);
+$router->get('/vendors/{id}', [VendorController::class, 'show'], ['auth', 'can:expenses.manage']);
+$router->post('/vendors/{id}', [VendorController::class, 'update'], ['auth', 'can:expenses.manage', 'throttle:60,1', 'csrf']);
 $router->get('/expenses', [ExpenseController::class, 'index'], ['auth', 'can:expenses.manage']);
 $router->post('/expenses', [ExpenseController::class, 'store'], ['auth', 'can:expenses.manage', 'throttle:60,1', 'csrf']);
 $router->get('/expenses/{id}', [ExpenseController::class, 'show'], ['auth', 'can:expenses.manage']);

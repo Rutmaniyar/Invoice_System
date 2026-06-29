@@ -172,6 +172,7 @@ if ($logoPath !== '') {
             <p class="business-name"><?= e($business['business_name'] ?? 'Business') ?></p>
             <?php $addressLine = trim(($business['address_line1'] ?? '') . ' ' . ($business['city'] ?? '') . ' ' . ($business['country'] ?? '')); ?>
             <?php if ($addressLine !== ''): ?><p class="muted" style="margin: 0;"><?= e($addressLine) ?></p><?php endif; ?>
+            <?php if (trim((string) ($business['tax_number'] ?? '')) !== ''): ?><p class="muted" style="margin: 0;">Tax/VAT: <?= e($business['tax_number']) ?></p><?php endif; ?>
             <?php $contactLine = trim((string) ($business['email'] ?? '') . ($business['phone'] ? ' · ' . $business['phone'] : '')); ?>
             <?php if ($contactLine !== ''): ?><p class="muted" style="margin: 0;"><?= e($contactLine) ?></p><?php endif; ?>
         </td>
@@ -198,9 +199,15 @@ if ($logoPath !== '') {
 
 <p class="bill-to-label">BILL TO</p>
 <p class="bill-to-name"><?= e($document['client_name'] ?? '') ?></p>
+<?php if (!empty($document['client_contact_name'])): ?><p class="muted" style="margin: 0;"><?= e($document['client_contact_name']) ?></p><?php endif; ?>
 <?php if (!empty($document['client_email'])): ?><p class="muted" style="margin: 0;"><?= e($document['client_email']) ?></p><?php endif; ?>
+<?php if (!empty($document['client_phone'])): ?><p class="muted" style="margin: 0;"><?= e($document['client_phone']) ?></p><?php endif; ?>
+<?php if (!empty($document['client_website'])): ?><p class="muted" style="margin: 0;"><?= e($document['client_website']) ?></p><?php endif; ?>
+<?php if (!empty($document['client_tax_number'])): ?><p class="muted" style="margin: 0;">Tax/VAT: <?= e($document['client_tax_number']) ?></p><?php endif; ?>
 <?php $billingAddress = trim((string) ($document['billing_address'] ?? '')); ?>
 <?php if ($billingAddress !== ''): ?><p class="muted" style="margin: 4pt 0 0; white-space: pre-line;"><?= e($billingAddress) ?></p><?php endif; ?>
+<?php $shippingAddress = trim((string) ($document['shipping_address'] ?? '')); ?>
+<?php if ($shippingAddress !== ''): ?><p class="muted" style="margin: 4pt 0 0; white-space: pre-line;">Ship to:<br><?= e($shippingAddress) ?></p><?php endif; ?>
 
 <table class="items">
     <thead>

@@ -6,6 +6,7 @@ $links = [
     ['/invoices', 'invoices', 'Invoices'],
     ['/recurring', 'invoices', 'Recurring'],
     ['/expenses', 'expenses', 'Expenses'],
+    ['/vendors', 'vendors', 'Vendors'],
     ['/reports', 'reports', 'Reports'],
     ['/settings', 'settings', 'Settings'],
     ['/privacy', 'shield', 'Privacy'],

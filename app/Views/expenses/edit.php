@@ -4,7 +4,15 @@
         <?= csrf_field() ?>
         <h2 class="text-lg font-black text-ink-900">Edit expense</h2>
         <div class="mt-5 space-y-4">
-            <label><span class="label">Vendor *</span><input class="field" name="vendor" required value="<?= e(old('vendor', $expense['vendor'])) ?>"></label>
+            <label>
+                <span class="label">Vendor *</span>
+                <select class="field" name="vendor_id" required>
+                    <option value="">Select vendor</option>
+                    <?php foreach ($vendors as $vendor): ?>
+                        <option value="<?= e($vendor['id']) ?>" <?= (string) old('vendor_id', (string) ($expense['vendor_id'] ?? '')) === (string) $vendor['id'] ? 'selected' : '' ?>><?= e($vendor['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
             <label><span class="label">Category *</span><input class="field" name="category" required list="expense-categories" value="<?= e(old('category', $expense['category'])) ?>"></label>
             <datalist id="expense-categories"><option value="Software"><option value="Office"><option value="Travel"><option value="Marketing"><option value="Professional services"></datalist>
             <label><span class="label">Expense date *</span><input class="field" name="expense_date" type="date" value="<?= e(old('expense_date', $expense['expense_date'])) ?>" required></label>

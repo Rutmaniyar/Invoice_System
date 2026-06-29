@@ -83,9 +83,6 @@
                 <?php endif; ?>
             </tbody>
         </table>
-        <div class="table-footer">
-            <span>Showing <?= e(count($invoices)) ?> invoices</span>
-            <span class="hidden sm:inline">Filter by status to focus collections work.</span>
-        </div>
+        <?php \App\Core\View::partial('partials/pagination', ['pagination' => $pagination, 'path' => '/invoices', 'query' => ['status' => $status]]); ?>
     </div>
 </section>

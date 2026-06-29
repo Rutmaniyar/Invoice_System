@@ -2,6 +2,7 @@
 $showDiscount = abs((float) ($invoice['discount_total'] ?? 0)) > 0.00001;
 $showTax = abs((float) ($invoice['tax_total'] ?? 0)) > 0.00001;
 $logoPath = trim((string) ($business['logo_path'] ?? ''));
+$canSendReminder = !in_array((string) $invoice['status'], ['draft', 'paid', 'void'], true) && (float) ($invoice['balance_due'] ?? 0) > 0;
 ?>
 <section class="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]" data-motion="fade-up" data-motion-stagger>
     <div class="card p-6">
@@ -13,7 +14,7 @@ $logoPath = trim((string) ($business['logo_path'] ?? ''));
                 <div class="min-w-0">
                     <p class="text-sm font-bold uppercase tracking-wide text-brand-700">Invoice</p>
                     <h2 class="text-3xl font-black text-ink-900 break-words"><?= e($invoice['invoice_number']) ?></h2>
-                    <p class="mt-1 break-words text-ink-500"><?= e($invoice['client_name']) ?> · <span class="break-all"><?= e($invoice['client_email']) ?></span></p>
+                    <p class="mt-1 break-words text-ink-500"><?= e($invoice['client_name']) ?><?= $invoice['client_email'] ? ' · ' : '' ?><span class="break-all"><?= e($invoice['client_email']) ?></span></p>
                 </div>
             </div>
             <div class="flex flex-col items-start gap-2 sm:items-end">
@@ -45,6 +46,20 @@ $logoPath = trim((string) ($business['logo_path'] ?? ''));
                 <p class="mt-1 font-black text-ink-900"><?= money($invoice['balance_due'], $invoice['currency']) ?></p>
             </div>
         </div>
+
+        <?php if (trim((string) ($invoice['client_contact_name'] ?? $invoice['client_phone'] ?? $invoice['client_website'] ?? $invoice['client_tax_number'] ?? $invoice['billing_address'] ?? $invoice['shipping_address'] ?? '')) !== ''): ?>
+            <div class="mt-6 rounded-lg border border-ink-100 bg-ink-50 p-4">
+                <p class="text-xs font-bold uppercase text-ink-500">Client details</p>
+                <div class="mt-2 space-y-1 text-sm text-ink-700">
+                    <?php if (!empty($invoice['client_contact_name'])): ?><p><strong>Contact:</strong> <?= e($invoice['client_contact_name']) ?></p><?php endif; ?>
+                    <?php if (!empty($invoice['client_phone'])): ?><p><strong>Phone:</strong> <?= e($invoice['client_phone']) ?></p><?php endif; ?>
+                    <?php if (!empty($invoice['client_website'])): ?><p><strong>Website:</strong> <?= e($invoice['client_website']) ?></p><?php endif; ?>
+                    <?php if (!empty($invoice['client_tax_number'])): ?><p><strong>Tax/VAT:</strong> <?= e($invoice['client_tax_number']) ?></p><?php endif; ?>
+                    <?php if (!empty($invoice['billing_address'])): ?><p class="whitespace-pre-line"><strong>Billing address:</strong><br><?= e($invoice['billing_address']) ?></p><?php endif; ?>
+                    <?php if (!empty($invoice['shipping_address'])): ?><p class="whitespace-pre-line"><strong>Shipping address:</strong><br><?= e($invoice['shipping_address']) ?></p><?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <div class="mt-6 table-wrap">
             <table class="data-table">
@@ -92,6 +107,12 @@ $logoPath = trim((string) ($business['logo_path'] ?? ''));
                 <a href="/invoices/<?= e($invoice['id']) ?>/pdf" target="_blank" rel="noopener" class="btn-secondary"><?= icon('download') ?> Download PDF</a>
                 <a href="/invoices/<?= e($invoice['id']) ?>/pdf?preview=1" target="_blank" rel="noopener" class="btn-secondary"><?= icon('invoices') ?> Preview</a>
                 <form method="post" action="/invoices/<?= e($invoice['id']) ?>/send"><?= csrf_field() ?><button class="btn-secondary w-full"><?= icon('send') ?> Email invoice</button></form>
+                <?php if ($canSendReminder): ?>
+                    <form method="post" action="/invoices/<?= e($invoice['id']) ?>/reminder"><?= csrf_field() ?><button class="btn-secondary w-full"><?= icon('send') ?> Send reminder</button></form>
+                    <?php if (!empty($invoice['last_reminder_sent_at'])): ?>
+                        <p class="text-xs font-semibold text-ink-500">Last reminder: <?= e($invoice['last_reminder_sent_at']) ?></p>
+                    <?php endif; ?>
+                <?php endif; ?>
                 <?php if ($invoice['status'] === 'draft'): ?>
                     <a href="/invoices/<?= e($invoice['id']) ?>/edit" class="btn-secondary"><?= icon('edit') ?> Edit draft</a>
                     <form method="post" action="/invoices/<?= e($invoice['id']) ?>/delete" onsubmit="return confirm('Delete this draft invoice? This cannot be undone.')">

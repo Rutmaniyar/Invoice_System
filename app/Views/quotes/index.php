@@ -44,9 +44,6 @@
                 <?php endif; ?>
             </tbody>
         </table>
-        <div class="table-footer">
-            <span>Showing <?= e(count($quotes)) ?> quotes</span>
-            <span class="hidden sm:inline">Accepted estimates can be converted into invoices.</span>
-        </div>
+        <?php \App\Core\View::partial('partials/pagination', ['pagination' => $pagination, 'path' => '/quotes']); ?>
     </div>
 </section>

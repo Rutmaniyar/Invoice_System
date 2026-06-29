@@ -58,10 +58,7 @@
                     <?php endif; ?>
                 </tbody>
             </table>
-            <div class="table-footer">
-                <span>Showing <?= e(count($clients)) ?> clients</span>
-                <span class="hidden sm:inline">GDPR basis is tracked per customer.</span>
-            </div>
+            <?php \App\Core\View::partial('partials/pagination', ['pagination' => $pagination, 'path' => '/clients', 'query' => ['q' => $search]]); ?>
         </div>
     </div>
 
@@ -87,6 +84,18 @@
             <label>
                 <span class="label">Email</span>
                 <input class="field" name="email" type="email" autocomplete="email">
+            </label>
+            <label>
+                <span class="label">Phone</span>
+                <input class="field" name="phone">
+            </label>
+            <label>
+                <span class="label">Website</span>
+                <input class="field" name="website" type="url">
+            </label>
+            <label>
+                <span class="label">Tax/VAT number</span>
+                <input class="field" name="tax_number">
             </label>
             <label>
                 <span class="label">Currency</span>

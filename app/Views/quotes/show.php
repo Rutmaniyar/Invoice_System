@@ -13,11 +13,25 @@ $logoPath = trim((string) ($business['logo_path'] ?? ''));
                 <div class="min-w-0">
                     <p class="text-sm font-bold uppercase tracking-wide text-brand-700">Quote</p>
                     <h2 class="text-3xl font-black text-ink-900 break-words"><?= e($quote['quote_number']) ?></h2>
-                    <p class="mt-1 break-words text-ink-500"><?= e($quote['client_name']) ?> · <span class="break-all"><?= e($quote['client_email']) ?></span></p>
+                    <p class="mt-1 break-words text-ink-500"><?= e($quote['client_name']) ?><?= $quote['client_email'] ? ' · ' : '' ?><span class="break-all"><?= e($quote['client_email']) ?></span></p>
                 </div>
             </div>
             <span class="badge bg-ink-100 text-ink-700"><?= e($quote['status']) ?></span>
         </div>
+
+        <?php if (trim((string) ($quote['client_contact_name'] ?? $quote['client_phone'] ?? $quote['client_website'] ?? $quote['client_tax_number'] ?? $quote['billing_address'] ?? $quote['shipping_address'] ?? '')) !== ''): ?>
+            <div class="mb-6 rounded-lg border border-ink-100 bg-ink-50 p-4">
+                <p class="text-xs font-bold uppercase text-ink-500">Client details</p>
+                <div class="mt-2 space-y-1 text-sm text-ink-700">
+                    <?php if (!empty($quote['client_contact_name'])): ?><p><strong>Contact:</strong> <?= e($quote['client_contact_name']) ?></p><?php endif; ?>
+                    <?php if (!empty($quote['client_phone'])): ?><p><strong>Phone:</strong> <?= e($quote['client_phone']) ?></p><?php endif; ?>
+                    <?php if (!empty($quote['client_website'])): ?><p><strong>Website:</strong> <?= e($quote['client_website']) ?></p><?php endif; ?>
+                    <?php if (!empty($quote['client_tax_number'])): ?><p><strong>Tax/VAT:</strong> <?= e($quote['client_tax_number']) ?></p><?php endif; ?>
+                    <?php if (!empty($quote['billing_address'])): ?><p class="whitespace-pre-line"><strong>Billing address:</strong><br><?= e($quote['billing_address']) ?></p><?php endif; ?>
+                    <?php if (!empty($quote['shipping_address'])): ?><p class="whitespace-pre-line"><strong>Shipping address:</strong><br><?= e($quote['shipping_address']) ?></p><?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <div class="table-wrap">
             <table class="data-table">

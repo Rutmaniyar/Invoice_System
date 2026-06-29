@@ -64,6 +64,9 @@ $total = (float) ($expense['amount'] ?? 0) + (float) ($expense['tax_amount'] ?? 
                 <?php if ($logoSrc): ?><img class="logo" src="<?= e($logoSrc) ?>" alt=""><?php endif; ?>
                 <p class="business-name"><?= e($business['business_name'] ?? 'Business') ?></p>
                 <p class="muted"><?= e(trim(($business['address_line1'] ?? '') . ' ' . ($business['city'] ?? '') . ' ' . ($business['country'] ?? ''))) ?></p>
+                <?php if (trim((string) ($business['tax_number'] ?? '')) !== ''): ?><p class="muted">Tax/VAT: <?= e($business['tax_number']) ?></p><?php endif; ?>
+                <?php $contactLine = trim((string) ($business['email'] ?? '') . ($business['phone'] ? ' · ' . $business['phone'] : '')); ?>
+                <?php if ($contactLine !== ''): ?><p class="muted"><?= e($contactLine) ?></p><?php endif; ?>
             </td>
             <td style="width:40%">
                 <p class="doc-label">EXPENSE RECEIPT</p>
@@ -78,7 +81,12 @@ $total = (float) ($expense['amount'] ?? 0) + (float) ($expense['tax_amount'] ?? 
     <hr class="divider">
 
     <table class="facts">
-        <tr><td class="label">Vendor</td><td class="value"><?= e($expense['vendor'] ?? '') ?></td></tr>
+        <tr><td class="label">Vendor</td><td class="value"><?= e($expense['vendor_name'] ?? $expense['vendor'] ?? '') ?></td></tr>
+        <?php if (!empty($expense['vendor_contact_name'])): ?><tr><td class="label">Vendor contact</td><td class="value"><?= e($expense['vendor_contact_name']) ?></td></tr><?php endif; ?>
+        <?php if (!empty($expense['vendor_email'])): ?><tr><td class="label">Vendor email</td><td class="value"><?= e($expense['vendor_email']) ?></td></tr><?php endif; ?>
+        <?php if (!empty($expense['vendor_phone'])): ?><tr><td class="label">Vendor phone</td><td class="value"><?= e($expense['vendor_phone']) ?></td></tr><?php endif; ?>
+        <?php if (!empty($expense['vendor_tax_number'])): ?><tr><td class="label">Vendor tax/VAT</td><td class="value"><?= e($expense['vendor_tax_number']) ?></td></tr><?php endif; ?>
+        <?php if (!empty($expense['vendor_billing_address'])): ?><tr><td class="label">Vendor address</td><td class="value"><?= nl2br(e($expense['vendor_billing_address'])) ?></td></tr><?php endif; ?>
         <tr><td class="label">Category</td><td class="value"><?= e($expense['category'] ?? '') ?></td></tr>
         <tr><td class="label">Amount</td><td class="value"><?= money($expense['amount'] ?? 0, $currency) ?></td></tr>
         <?php if (abs((float) ($expense['tax_amount'] ?? 0)) > 0.00001): ?>
